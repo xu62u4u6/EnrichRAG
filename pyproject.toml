@@ -1,0 +1,28 @@
+[project]
+name = "enrichrag"
+version = "0.1.0"
+description = "Literature-augmented gene set enrichment framework"
+requires-python = ">=3.10"
+
+dependencies = [
+  "gseapy",
+  "pandas",
+  "numpy",
+  "scipy",
+  "fastapi"
+]
+
+[project.optional-dependencies]
+dev = [
+  "ipykernel",
+  "jupyterlab",
+  "notebook",
+  "black",
+  "ruff",
+  "pytest"
+]
+
+viz = [
+  "matplotlib",
+  "seaborn"
+]
