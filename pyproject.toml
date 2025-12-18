@@ -12,6 +12,8 @@ dependencies = [
   "fastapi",
   "langchain-core",
   "langchain-community",
+  "langchain-openai",
+  "python-dotenv",
   "tabulate"
 ]
 
