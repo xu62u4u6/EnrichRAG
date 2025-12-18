@@ -9,7 +9,10 @@ dependencies = [
   "pandas",
   "numpy",
   "scipy",
-  "fastapi"
+  "fastapi",
+  "langchain-core",
+  "langchain-community",
+  "tabulate"
 ]
 
 [project.optional-dependencies]
