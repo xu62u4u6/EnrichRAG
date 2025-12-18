@@ -1,0 +1,48 @@
+_type: prompt
+input_variables: ["text", "source"]
+template: |
+    你是一個生物醫學實體與關係提取專家。請分析以下文獻摘要或文本，提取：
+    1. 所有提到的基因實體
+    2. 基因之間的調控關係
+    
+    【文獻來源】
+    {source}
+    
+    【文獻文本】
+    {text}
+    
+    【提取規則】
+    - 基因實體：提取所有基因符號（如 TP53, KRAS, EGFR）
+    - 調控關係：識別基因間的 up-regulation（上調/促進）或 down-regulation（下調/抑制）
+    - 關係類型：
+      * "upregulate" / "activate" / "promote" / "increase" → relation = "up"
+      * "downregulate" / "inhibit" / "suppress" / "decrease" → relation = "down"
+    
+    【輸出格式】
+    請輸出 JSON 格式：
+    ```json
+    {{
+      "source_reference": "PMID:12345678 或完整來源資訊",
+      "genes": ["TP53", "BAX", "BCL2"],
+      "relations": [
+        {{
+          "source_gene": "TP53",
+          "target_gene": "BAX",
+          "relation": "up",
+          "evidence": "TP53 upregulates BAX expression in response to DNA damage"
+        }},
+        {{
+          "source_gene": "TP53",
+          "target_gene": "BCL2",
+          "relation": "down",
+          "evidence": "TP53 inhibits BCL2 transcription"
+        }}
+      ]
+    }}
+    ```
+    
+    【注意事項】
+    1. 只提取明確提到的基因符號，忽略蛋白質複合體或通路名稱
+    2. 只提取直接的調控關係，避免推測間接作用
+    3. evidence 欄位必須是原文中的完整句子
+    4. 如果沒有找到基因或關係，返回空數組
