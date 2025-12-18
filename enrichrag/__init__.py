@@ -2,6 +2,4 @@
 
 __version__ = "0.1.0"
 
-from enrichrag.core.enrich import enrich
-
-__all__ = ["enrich"]
+from enrichrag.core.enricher import GeneEnricher
