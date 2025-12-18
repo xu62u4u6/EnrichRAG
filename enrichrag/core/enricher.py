@@ -67,14 +67,4 @@ class GeneEnricher:
             return pd.DataFrame()
         return self.filtered_results[label].nsmallest(n, "p_adjusted")
 
-# --- 使用範例 ---
-genes = ["TP53", "KRAS", "EGFR", "TP63", "MYC", "PTEN", "RAF", "AKT"]
-dbs = {"GO": "GO_Biological_Process_2021", "KEGG": "KEGG_2021_Human"}
-
-enricher = GeneEnricher(genes)
-enricher.run_enrichment(dbs).filter(pval_threshold=0.01)
-
-# 取得 GO 的前五名結果
-print(enricher.get_top_terms("GO", n=5))
-
 
