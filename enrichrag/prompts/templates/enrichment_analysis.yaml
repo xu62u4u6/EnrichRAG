@@ -1,0 +1,26 @@
+_type: prompt
+input_variables: ["context", "genes", "go_table", "kegg_table"]
+template: |
+    你是一位資深的生物資訊專家。
+    
+    【研究背景】
+    {context}
+
+    【輸入基因清單】
+    {genes}
+
+    【分析結果數據】
+    以下是從資料庫獲得的顯著富集結果：
+
+    <GO_Biological_Process>
+    {go_table}
+    </GO_Biological_Process>
+
+    <KEGG_Pathways>
+    {kegg_table}
+    </KEGG_Pathways>
+
+    請基於以上數據提供專業的 Insight：
+    1. 這些基因共同調控的核心生物學機制為何？
+    2. 是否存在特定的臨床藥物標靶潛力？
+    3. 請提出兩個後續可驗證的實驗假設。
