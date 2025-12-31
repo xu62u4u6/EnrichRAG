@@ -14,7 +14,9 @@ dependencies = [
   "langchain-community",
   "langchain-openai",
   "python-dotenv",
-  "tabulate"
+  "tabulate",
+  "networkx",
+  "seaborn"
 ]
 
 [project.optional-dependencies]
