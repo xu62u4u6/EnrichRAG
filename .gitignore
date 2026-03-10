@@ -166,6 +166,11 @@ Desktop.ini
 gseapy_output/
 enrichr_output/
 
+# Claude Code / AI agents
+.claude/
+.agents/
+skills-lock.json
+
 # Project specific
 output/
 examples/output/
