@@ -1,8 +1,9 @@
 """Shared pipeline logic for CLI and API."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 from langchain_core.output_parsers import StrOutputParser
@@ -46,60 +47,13 @@ def run_pipeline(
     enricher.filter(pval_threshold=pval_threshold)
     _progress("enrichment", "Enrichment analysis complete.")
 
-    # 2. Web Search
-    web_context = ""
-    web_sources: list = []
-    if not settings.tavily_api_key:
-        _progress("search", "Skipping web search — TAVILY_API_KEY not set.")
-    else:
-        _progress("search", "Searching for related literature...")
-        try:
-            searcher = WebSearcher(max_results=3, api_key=settings.tavily_api_key)
-            searcher.search_smart(
-                gene_list=genes,
-                disease=disease,
-                enrichment_results=enricher.filtered_results,
-            )
-            web_context = searcher.to_context()
-            web_sources = searcher.to_sources()
-            _progress("search", f"Found {len(searcher.results)} unique results.")
-        except Exception as e:
-            logger.error(f"Web search failed: {e}")
-            _progress("search", f"Web search failed: {e}")
+    # 2. Parallel Search (Web + PubMed)
+    _progress("search", "Searching web and PubMed in parallel...")
+    web_context, web_sources, pubmed_context, pubmed_sources = _parallel_search(
+        genes, disease, enricher.filtered_results, _progress,
+    )
 
-    # 3. PubMed Search
-    pubmed_context = ""
-    pubmed_sources: list = []
-    if not settings.pubmed_email or settings.pubmed_email == "your@email.com":
-        _progress("pubmed", "Skipping PubMed — PUBMED_EMAIL not configured.")
-    else:
-        _progress("pubmed", "Fetching PubMed abstracts...")
-        try:
-            fetcher = PubMedFetcher(email=settings.pubmed_email, max_results=10)
-            fetcher.search(gene_list=genes, mode="batch", disease=disease)
-            df = fetcher.to_dataframe()
-            if not df.empty:
-                parts = []
-                for _, row in df.iterrows():
-                    parts.append(f"[PMID:{row['pmid']}] {row['title']}\n{row['abstract']}")
-                pubmed_context = "\n\n".join(parts)
-                pubmed_sources = [
-                    {
-                        "pmid": row["pmid"],
-                        "title": row["title"],
-                        "abstract": row["abstract"],
-                        "authors": row["authors"],
-                        "journal": row["journal"],
-                        "pub_date": row["pub_date"],
-                    }
-                    for _, row in df.iterrows()
-                ]
-            _progress("pubmed", f"Fetched {len(df)} PubMed abstracts.")
-        except Exception as e:
-            logger.error(f"PubMed fetch failed: {e}")
-            _progress("pubmed", f"PubMed fetch failed: {e}")
-
-    # 4. LLM
+    # 3. LLM
     insight = ""
     if not settings.openai_api_key:
         _progress("llm", "Skipping LLM — OPENAI_API_KEY not set.")
@@ -137,7 +91,7 @@ def run_pipeline(
             insight = f"Error generating insight: {e}"
             _progress("llm", f"LLM generation failed: {e}")
 
-    # 5. Build result
+    # 4. Build result
     result = {
         "input_genes": genes,
         "disease_context": disease,
@@ -154,6 +108,83 @@ def run_pipeline(
 
     _progress("done", "Pipeline complete.")
     return result
+
+
+def _parallel_search(
+    genes: List[str],
+    disease: str,
+    enrichment_results: Dict,
+    _progress: Callable,
+) -> Tuple[str, list, str, list]:
+    """Run web search and PubMed fetch in parallel threads."""
+
+    web_context = ""
+    web_sources: list = []
+    pubmed_context = ""
+    pubmed_sources: list = []
+
+    def _web_search() -> Tuple[str, list]:
+        if not settings.tavily_api_key:
+            _progress("search", "Skipping web search — TAVILY_API_KEY not set.")
+            return "", []
+        _progress("search", "Searching for related literature...")
+        try:
+            searcher = WebSearcher(max_results=3, api_key=settings.tavily_api_key)
+            searcher.search_smart(
+                gene_list=genes,
+                disease=disease,
+                enrichment_results=enrichment_results,
+            )
+            _progress("search", f"Found {len(searcher.results)} unique web results.")
+            return searcher.to_context(), searcher.to_sources()
+        except Exception as e:
+            logger.error(f"Web search failed: {e}")
+            _progress("search", f"Web search failed: {e}")
+            return "", []
+
+    def _pubmed_search() -> Tuple[str, list]:
+        if not settings.pubmed_email or settings.pubmed_email == "your@email.com":
+            _progress("pubmed", "Skipping PubMed — PUBMED_EMAIL not configured.")
+            return "", []
+        _progress("pubmed", "Fetching PubMed abstracts...")
+        try:
+            fetcher = PubMedFetcher(email=settings.pubmed_email, max_results=10)
+            fetcher.search(gene_list=genes, mode="batch", disease=disease)
+            df = fetcher.to_dataframe()
+            if df.empty:
+                _progress("pubmed", "No PubMed abstracts found.")
+                return "", []
+            parts = []
+            sources = []
+            for _, row in df.iterrows():
+                parts.append(f"[PMID:{row['pmid']}] {row['title']}\n{row['abstract']}")
+                sources.append({
+                    "pmid": row["pmid"],
+                    "title": row["title"],
+                    "abstract": row["abstract"],
+                    "authors": row["authors"],
+                    "journal": row["journal"],
+                    "pub_date": row["pub_date"],
+                })
+            _progress("pubmed", f"Fetched {len(df)} PubMed abstracts.")
+            return "\n\n".join(parts), sources
+        except Exception as e:
+            logger.error(f"PubMed fetch failed: {e}")
+            _progress("pubmed", f"PubMed fetch failed: {e}")
+            return "", []
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        web_future = executor.submit(_web_search)
+        pubmed_future = executor.submit(_pubmed_search)
+
+        for future in as_completed([web_future, pubmed_future]):
+            if future is web_future:
+                web_context, web_sources = future.result()
+            else:
+                pubmed_context, pubmed_sources = future.result()
+
+    _progress("search", "All searches complete.")
+    return web_context, web_sources, pubmed_context, pubmed_sources
 
 
 def save_result(result: Dict, output: Path) -> None:

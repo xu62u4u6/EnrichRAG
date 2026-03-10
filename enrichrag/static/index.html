@@ -117,24 +117,47 @@
     .btn-secondary { background: #fff; color: var(--slate-700); border: 1px solid var(--slate-200); box-shadow: var(--shadow-sm); }
     .btn-secondary:hover { background: var(--slate-50); }
 
-    /* ---- Loading ---- */
+    /* ---- Loading / Pipeline ---- */
     .loading-view {
       display: none; flex-direction: column; align-items: center;
-      justify-content: center; min-height: 55vh; animation: fadeUp .3s ease;
+      justify-content: center; min-height: 70vh; animation: fadeUp .3s ease;
+      background: radial-gradient(#e5e7eb 1px, transparent 1px);
+      background-size: 20px 20px; border-radius: 24px; border: 1px solid var(--slate-100);
+      box-shadow: inset 0 2px 4px rgba(0,0,0,.03); margin: 1rem 0;
     }
     .loading-view.active { display: flex; }
-    .spinner-wrap { position: relative; width: 80px; height: 80px; margin-bottom: 1.5rem; }
-    .spinner-track { position: absolute; inset: 0; border: 4px solid var(--indigo-100); border-radius: 50%; }
-    .spinner {
-      position: absolute; inset: 0; border: 4px solid var(--indigo-600);
-      border-radius: 50%; border-top-color: transparent; animation: spin 0.8s linear infinite;
-    }
+
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner-icon {
-      position: absolute; inset: 0; display: flex; align-items: center;
-      justify-content: center; color: var(--indigo-600); animation: pulse 1.5s ease infinite;
-    }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+    @keyframes dash { to { stroke-dashoffset: -18; } }
+
+    .pipeline-canvas { position: relative; width: 900px; height: 320px; margin: 1rem auto; }
+
+    .pipe-node {
+      position: absolute; transform: translate(-50%, -50%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 1rem 0.75rem; border-radius: 12px; border: 2px solid var(--slate-200);
+      background: #fff; width: 160px; box-shadow: var(--shadow-sm);
+      transition: all .5s ease; z-index: 10;
+    }
+    .pipe-node .node-icon { margin-bottom: 0.4rem; }
+    .pipe-node .node-title { font-size: 0.8rem; font-weight: 700; color: var(--slate-800); text-align: center; }
+    .pipe-node .node-sub { font-size: 0.65rem; color: var(--slate-500); text-align: center; margin-top: 2px; }
+
+    .pipe-node[data-status="pending"] { border-color: var(--slate-200); opacity: .6; }
+    .pipe-node[data-status="pending"] .node-icon { color: var(--slate-400); }
+    .pipe-node[data-status="active"] {
+      border-color: var(--indigo-500); opacity: 1;
+      box-shadow: 0 0 20px rgba(99,102,241,.2); transform: translate(-50%, -50%) scale(1.05);
+    }
+    .pipe-node[data-status="active"] .node-icon { color: var(--indigo-600); animation: spin .8s linear infinite; }
+    .pipe-node[data-status="done"] { border-color: var(--emerald-500); opacity: 1; }
+    .pipe-node[data-status="done"] .node-icon { color: var(--emerald-500); }
+
+    .pipe-line { transition: stroke .5s, stroke-dasharray .3s; }
+    .pipe-line.active { stroke: #818cf8; stroke-dasharray: 10, 8; animation: dash 1.5s linear infinite; }
+    .pipe-line.done { stroke: #10b981; }
+    .pipe-line.pending { stroke: #e2e8f0; }
 
     /* ---- Results header ---- */
     .results-header {
@@ -304,7 +327,7 @@
         <div class="card-body">
           <div class="form-group" style="margin-bottom: 1.5rem;">
             <label>Gene Symbols <span class="hint">(comma, space, or newline separated)</span></label>
-            <textarea id="genes" placeholder="e.g. TP53 KRAS EGFR BRCA1">TP53 KRAS EGFR</textarea>
+            <textarea id="genes" placeholder="e.g. TP53 KRAS EGFR BRCA1">BRCA1 BRCA2 RAD51 RAD52 ATM ATR CHEK1 CHEK2 MLH1 MSH2 MSH6 PMS2</textarea>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -325,15 +348,63 @@
       </div>
     </div>
 
-    <!-- VIEW: Loading -->
+    <!-- VIEW: Loading (Pipeline Flowchart) -->
     <div class="loading-view" id="view-loading">
-      <div class="spinner-wrap">
-        <div class="spinner-track"></div>
-        <div class="spinner"></div>
-        <div class="spinner-icon"><i data-lucide="settings"></i></div>
+      <div style="text-align:center;margin-bottom:1.5rem">
+        <h3 style="font-size:1.4rem;font-weight:700;color:var(--slate-800);margin-bottom:.25rem">Processing Data</h3>
+        <p style="color:var(--slate-500);font-size:.85rem" id="loadingMsg">Initializing pipeline...</p>
       </div>
-      <h3>Processing Data</h3>
-      <p class="status-msg" id="loadingMsg">Starting...</p>
+
+      <div class="pipeline-canvas">
+        <!-- SVG lines -->
+        <svg viewBox="0 0 900 320" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0">
+          <!-- Step1 → Step2a (top) -->
+          <path id="line-1-2a" class="pipe-line pending" d="M 110 160 C 220 160, 220 80, 340 80" fill="none" stroke-width="3"/>
+          <!-- Step1 → Step2b (bottom) -->
+          <path id="line-1-2b" class="pipe-line pending" d="M 110 160 C 220 160, 220 240, 340 240" fill="none" stroke-width="3"/>
+          <!-- Step2a → Step3 -->
+          <path id="line-2a-3" class="pipe-line pending" d="M 340 80 C 460 80, 460 160, 560 160" fill="none" stroke-width="3"/>
+          <!-- Step2b → Step3 -->
+          <path id="line-2b-3" class="pipe-line pending" d="M 340 240 C 460 240, 460 160, 560 160" fill="none" stroke-width="3"/>
+          <!-- Step3 → Step4 -->
+          <path id="line-3-4" class="pipe-line pending" d="M 560 160 L 790 160" fill="none" stroke-width="3"/>
+        </svg>
+
+        <!-- Node 1: Enrichment -->
+        <div class="pipe-node" data-status="pending" id="node-enrichment" style="left:110px;top:160px">
+          <div class="node-icon"><i data-lucide="network" style="width:24px;height:24px"></i></div>
+          <div class="node-title">1. Enrichment</div>
+          <div class="node-sub">GSEApy (GO & KEGG)</div>
+        </div>
+
+        <!-- Node 2a: Web Search -->
+        <div class="pipe-node" data-status="pending" id="node-search" style="left:340px;top:80px">
+          <div class="node-icon"><i data-lucide="search" style="width:24px;height:24px"></i></div>
+          <div class="node-title">2a. Web Search</div>
+          <div class="node-sub">Tavily API</div>
+        </div>
+
+        <!-- Node 2b: PubMed -->
+        <div class="pipe-node" data-status="pending" id="node-pubmed" style="left:340px;top:240px">
+          <div class="node-icon"><i data-lucide="book-open" style="width:24px;height:24px"></i></div>
+          <div class="node-title">2b. PubMed</div>
+          <div class="node-sub">NCBI Entrez API</div>
+        </div>
+
+        <!-- Node 3: LLM -->
+        <div class="pipe-node" data-status="pending" id="node-llm" style="left:560px;top:160px">
+          <div class="node-icon"><i data-lucide="brain-circuit" style="width:24px;height:24px"></i></div>
+          <div class="node-title">3. LLM Analysis</div>
+          <div class="node-sub">ChatOpenAI</div>
+        </div>
+
+        <!-- Node 4: Result -->
+        <div class="pipe-node" data-status="pending" id="node-done" style="left:790px;top:160px">
+          <div class="node-icon"><i data-lucide="file-json" style="width:24px;height:24px"></i></div>
+          <div class="node-title">4. Build Report</div>
+          <div class="node-sub">JSON & UI</div>
+        </div>
+      </div>
     </div>
 
     <!-- VIEW: Results -->
@@ -405,13 +476,83 @@ function showToast(msg, ms = 2500) {
   setTimeout(() => t.classList.remove('show'), ms);
 }
 
+// Pipeline node/line state management
+function setPipelineState(nodeId, status) {
+  const el = document.getElementById('node-' + nodeId);
+  if (el) {
+    el.dataset.status = status;
+    // Replace icon with check for done, spinner for active
+    const iconEl = el.querySelector('.node-icon');
+    if (status === 'done') {
+      iconEl.innerHTML = '<i data-lucide="check-circle-2" style="width:24px;height:24px"></i>';
+    } else if (status === 'active') {
+      iconEl.innerHTML = '<i data-lucide="loader-2" style="width:24px;height:24px"></i>';
+    }
+    lucide.createIcons();
+  }
+}
+
+function setLineState(lineId, status) {
+  const el = document.getElementById(lineId);
+  if (el) { el.className = 'pipe-line ' + status; }
+}
+
+function resetPipeline() {
+  ['enrichment','search','pubmed','llm','done'].forEach(n => {
+    const el = document.getElementById('node-' + n);
+    if (el) el.dataset.status = 'pending';
+  });
+  document.querySelectorAll('.pipe-line').forEach(l => l.className = 'pipe-line pending');
+}
+
+// Map SSE event names to pipeline animation states
+function updatePipelineFromEvent(step, message) {
+  document.getElementById('loadingMsg').textContent = message;
+
+  if (step === 'enrichment' && message.includes('Running')) {
+    setPipelineState('enrichment', 'active');
+  } else if (step === 'enrichment' && message.includes('complete')) {
+    setPipelineState('enrichment', 'done');
+    setLineState('line-1-2a', 'active');
+    setLineState('line-1-2b', 'active');
+  } else if (step === 'search' && (message.includes('Searching') || message.includes('Skipping web'))) {
+    setPipelineState('search', message.includes('Skipping') ? 'done' : 'active');
+    setPipelineState('pubmed', 'active'); // parallel
+  } else if (step === 'search' && message.includes('Found')) {
+    setPipelineState('search', 'done');
+  } else if (step === 'pubmed' && message.includes('Fetching')) {
+    setPipelineState('pubmed', 'active');
+  } else if (step === 'pubmed' && (message.includes('Fetched') || message.includes('Skipping'))) {
+    setPipelineState('pubmed', 'done');
+  } else if (step === 'search' && message.includes('All searches')) {
+    setPipelineState('search', 'done');
+    setPipelineState('pubmed', 'done');
+    setLineState('line-1-2a', 'done');
+    setLineState('line-1-2b', 'done');
+    setLineState('line-2a-3', 'active');
+    setLineState('line-2b-3', 'active');
+  } else if (step === 'llm' && message.includes('Generating')) {
+    setPipelineState('llm', 'active');
+  } else if (step === 'llm' && (message.includes('generated') || message.includes('Skipping'))) {
+    setPipelineState('llm', 'done');
+    setLineState('line-2a-3', 'done');
+    setLineState('line-2b-3', 'done');
+    setLineState('line-3-4', 'active');
+  } else if (step === 'done') {
+    setPipelineState('done', 'done');
+    setLineState('line-3-4', 'done');
+  }
+}
+
 function runAnalysis() {
   const genes = document.getElementById('genes').value.trim();
   const disease = document.getElementById('disease').value.trim();
   const pval = document.getElementById('pval').value;
   if (!genes) return;
 
+  resetPipeline();
   switchView('loading');
+  lucide.createIcons();
   document.getElementById('loadingMsg').textContent = 'Initializing...';
   document.getElementById('runBtn').disabled = true;
 
@@ -434,7 +575,7 @@ function runAnalysis() {
       document.getElementById('loadingMsg').textContent = msg.message;
       setTimeout(() => switchView('input'), 2000);
     } else {
-      document.getElementById('loadingMsg').textContent = msg.message;
+      updatePipelineFromEvent(msg.event, msg.message);
     }
   };
 
