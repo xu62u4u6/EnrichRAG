@@ -1,33 +1,36 @@
-import pandas as pd
 from typing import List, Literal, Optional
-from pydantic import BaseModel, Field
-from langchain_core.prompts import load_prompt
+
+import pandas as pd
 from langchain_core.language_models import BaseChatModel
+from langchain_core.prompts import load_prompt
+from pydantic import BaseModel, Field
+
+from enrichrag.logging import logger
 
 
 class GeneRelation(BaseModel):
-    """單一基因調控關係。"""
-    source_gene: str = Field(description="調控方基因符號，例如 TP53")
-    target_gene: str = Field(description="被調控方基因符號，例如 BAX")
+    """A single gene regulatory relation."""
+    source_gene: str = Field(description="Regulator gene symbol, e.g. TP53")
+    target_gene: str = Field(description="Target gene symbol, e.g. BAX")
     relation: Literal["up", "down"] = Field(
-        description="調控方向：up（上調/促進/活化）或 down（下調/抑制）"
+        description="Direction: up (upregulate/promote/activate) or down (downregulate/inhibit)"
     )
-    evidence: str = Field(description="原文中支持此關係的句子")
+    evidence: str = Field(description="Supporting sentence from the source text")
 
 
 class ExtractionResult(BaseModel):
-    """一篇摘要的完整抽取結果。"""
-    genes: List[str] = Field(description="摘要中提到的所有基因符號")
+    """Extraction result from a single abstract."""
+    genes: List[str] = Field(description="All gene symbols mentioned in the abstract")
     relations: List[GeneRelation] = Field(
         default_factory=list,
-        description="基因間的調控關係列表，若無明確關係則為空",
+        description="Regulatory relations between genes; empty if none found",
     )
 
 
 class RelationExtractor:
     """
-    從 PubMed 摘要中使用 LLM 提取基因間調控關係。
-    使用 Pydantic structured output 確保輸出格式。
+    Extracts gene regulatory relations from PubMed abstracts using LLM
+    with Pydantic structured output.
     """
 
     def __init__(self, llm: BaseChatModel, template_path: Optional[str] = None):
@@ -45,12 +48,12 @@ class RelationExtractor:
 
     def extract(self, abstracts_df: pd.DataFrame) -> pd.DataFrame:
         """
-        對每篇摘要執行 LLM 關係抽取，回傳合併的 Relation Table。
+        Run LLM relation extraction on each abstract, return merged Relation Table.
 
         Parameters
         ----------
-        abstracts_df : PubMedFetcher.to_dataframe() 的輸出，
-                       需要有 pmid, title, abstract 欄位
+        abstracts_df : Output of PubMedFetcher.to_dataframe(),
+                       must have pmid, title, abstract columns
         """
         self.raw_results = []
         sources: List[str] = []
@@ -70,13 +73,13 @@ class RelationExtractor:
                 self.raw_results.append(result)
                 sources.append(source)
             except Exception as e:
-                print(f"抽取失敗 ({source}): {e}")
+                logger.error(f"Extraction failed ({source}): {e}")
 
-        print(f"成功抽取 {len(self.raw_results)} 篇文獻的關係")
+        logger.info(f"Successfully extracted relations from {len(self.raw_results)} abstracts")
         return self._to_relation_table(sources)
 
     def _to_relation_table(self, sources: List[str]) -> pd.DataFrame:
-        """將所有抽取結果合併為一張 Relation Table。"""
+        """Merge all extraction results into a single Relation Table."""
         rows = []
         for result, source in zip(self.raw_results, sources):
             for rel in result.relations:

@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "enrichrag"
 version = "0.1.0"
@@ -9,7 +13,6 @@ dependencies = [
   "pandas",
   "numpy",
   "scipy",
-  "fastapi",
   "langchain-core",
   "langchain-community",
   "langchain-openai",
@@ -19,19 +22,34 @@ dependencies = [
   "seaborn",
   "biopython",
   "langchain-tavily>=0.2.17",
+  "typer>=0.9",
+  "pydantic-settings>=2.0",
+  "loguru",
 ]
+
+[project.scripts]
+enrichrag = "enrichrag.cli:app"
 
 [project.optional-dependencies]
 dev = [
   "ipykernel",
   "jupyterlab",
   "notebook",
-  "black",
   "ruff",
-  "pytest"
+  "pytest",
 ]
 
 viz = [
   "matplotlib",
-  "seaborn"
+  "seaborn",
 ]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,12 +1,15 @@
-import pandas as pd
 from typing import List, Optional
+
+import pandas as pd
 from langchain_tavily import TavilySearch
+
+from enrichrag.logging import logger
 
 
 class WebSearcher:
     """
-    使用 Tavily Search API 搜尋最新臨床/生物醫學資訊。
-    需要設定環境變數 TAVILY_API_KEY。
+    Searches for latest clinical/biomedical information using Tavily Search API.
+    Requires TAVILY_API_KEY environment variable.
     """
 
     def __init__(self, max_results: int = 5):
@@ -25,13 +28,13 @@ class WebSearcher:
         custom_query: Optional[str] = None,
     ) -> "WebSearcher":
         """
-        搜尋基因相關的最新資訊。
+        Search for latest gene-related information.
 
         Parameters
         ----------
-        gene_list : 基因列表
-        disease : 可選的疾病關鍵字
-        custom_query : 自訂查詢，若提供則忽略 gene_list 和 disease
+        gene_list : List of gene symbols
+        disease : Optional disease keyword
+        custom_query : Custom query; if provided, gene_list and disease are ignored
         """
         if custom_query:
             query = custom_query
@@ -49,15 +52,15 @@ class WebSearcher:
                 self.results = raw
             else:
                 self.results = [raw]
-            print(f"搜尋到 {len(self.results)} 筆結果")
+            logger.info(f"Found {len(self.results)} search results")
         except Exception as e:
-            print(f"搜尋失敗: {e}")
+            logger.error(f"Search failed: {e}")
             self.results = []
 
         return self
 
     def to_dataframe(self) -> pd.DataFrame:
-        """將搜尋結果轉為 DataFrame。"""
+        """Convert search results to a DataFrame."""
         rows = []
         for item in self.results:
             rows.append(
@@ -70,7 +73,7 @@ class WebSearcher:
         return pd.DataFrame(rows)
 
     def to_context(self) -> str:
-        """將搜尋結果轉為可直接塞入 prompt 的文字。"""
+        """Convert search results to text suitable for prompt injection."""
         parts = []
         for i, item in enumerate(self.results, 1):
             title = item.get("title", "")

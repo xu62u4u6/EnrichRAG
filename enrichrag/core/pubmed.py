@@ -1,14 +1,15 @@
 import time
-import pandas as pd
-from typing import List, Optional
 from itertools import combinations
+from typing import List, Optional
+
+import pandas as pd
 from Bio import Entrez, Medline
+
+from enrichrag.logging import logger
 
 
 class PubMedFetcher:
-    """
-    透過 Biopython Entrez API 查詢 PubMed，取得基因相關文獻摘要。
-    """
+    """Fetches gene-related abstracts from PubMed via Biopython Entrez API."""
 
     def __init__(self, email: str, max_results: int = 20):
         self.email = email
@@ -23,13 +24,13 @@ class PubMedFetcher:
         disease: Optional[str] = None,
     ) -> "PubMedFetcher":
         """
-        搜尋 PubMed 並取得摘要。
+        Search PubMed and fetch abstracts.
 
         Parameters
         ----------
-        gene_list : 基因列表
-        mode : "batch" 全部基因一起查 | "pairwise" 兩兩配對查
-        disease : 可選的疾病關鍵字，加入查詢條件
+        gene_list : List of gene symbols
+        mode : "batch" (all genes together) | "pairwise" (pairwise combinations)
+        disease : Optional disease keyword to add to the query
         """
         if mode == "pairwise":
             queries = self._build_pairwise_queries(gene_list, disease)
@@ -44,11 +45,11 @@ class PubMedFetcher:
         if all_pmids:
             self.records = self._efetch(list(all_pmids))
 
-        print(f"共取得 {len(self.records)} 篇文獻摘要")
+        logger.info(f"Fetched {len(self.records)} abstracts")
         return self
 
     def to_dataframe(self) -> pd.DataFrame:
-        """將結果轉為 DataFrame。"""
+        """Convert results to a DataFrame."""
         rows = []
         for rec in self.records:
             rows.append(
@@ -86,7 +87,7 @@ class PubMedFetcher:
         return queries
 
     def _esearch(self, query: str) -> List[str]:
-        """執行 PubMed 搜尋，回傳 PMID 列表。"""
+        """Execute PubMed search, return PMID list."""
         try:
             handle = Entrez.esearch(
                 db="pubmed",
@@ -99,11 +100,11 @@ class PubMedFetcher:
             time.sleep(0.34)  # NCBI rate limit: 3 requests/sec
             return result.get("IdList", [])
         except Exception as e:
-            print(f"esearch 失敗: {e}")
+            logger.error(f"esearch failed: {e}")
             return []
 
     def _efetch(self, pmids: List[str]) -> List[dict]:
-        """根據 PMID 列表取得文獻詳細資訊。"""
+        """Fetch article details by PMID list."""
         try:
             handle = Entrez.efetch(
                 db="pubmed",
@@ -115,5 +116,5 @@ class PubMedFetcher:
             handle.close()
             return records
         except Exception as e:
-            print(f"efetch 失敗: {e}")
+            logger.error(f"efetch failed: {e}")
             return []

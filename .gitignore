@@ -167,6 +167,7 @@ gseapy_output/
 enrichr_output/
 
 # Project specific
+output/
 examples/output/
 data/cache/
 *.pdf

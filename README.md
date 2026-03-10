@@ -176,6 +176,7 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 **Import known biological graphs**
 - [ ] **STRING DB** — download TSV, import PPI edges (`type="ppi"`)
 - [ ] **KEGG Pathway** — import directed regulatory edges (`type="pathway"`)
+- [ ] **PubTator Central** — bulk co-occurrence edges from FTP (`ftp://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral`). Provides low-cost, large-scale gene-gene and gene-disease co-occurrence relationships mined from PubMed abstracts. Positioning: cheap bulk edges to complement curated databases like STRING and KEGG.
 - [ ] (optional) Reactome / DisGeNET
 
 **Pipeline integration**
