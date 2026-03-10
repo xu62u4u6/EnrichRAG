@@ -193,6 +193,22 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 - [ ] Store new relations back to KnowledgeGraph (graph grows with usage)
 - [ ] Cache layer: avoid duplicate queries for same gene pairs
 
+### Web UI — Data Visualization (Planned)
+
+**Enrichment Charts**
+- [ ] Enrichment bar chart — top GO/KEGG terms sorted by -log10(p-adjusted)
+- [ ] Dot plot — x=gene count, y=term, size=overlap ratio, color=p-value
+- [ ] Gene-term heatmap — overlap matrix (genes × pathways)
+
+**Network Graph**
+- [ ] Gene interaction network — force-directed graph from RelationExtractor output
+- [ ] Node sizing by degree / PageRank, edge coloring by relation type
+- [ ] Interactive: hover to highlight neighbors, click to inspect evidence
+
+**Infrastructure**
+- [ ] Lightweight chart library (e.g. D3.js or Chart.js) integration
+- [ ] `/api/graph` endpoint — return graph JSON (nodes + edges) for frontend rendering
+
 ### v1.0 - Full Pipeline (Future)
 
 - [ ] CLI: `enrichrag analyze --genes TP53 KRAS EGFR --disease cancer`
