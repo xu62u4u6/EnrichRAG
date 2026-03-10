@@ -1,12 +1,77 @@
 # EnrichRAG
 
-**EnrichRAG is a modular framework that performs canonical gene set enrichment and extends it with literature-augmented integration and interpretation.**
+**EnrichRAG is a modular framework that performs canonical gene set enrichment and extends it with knowledge graph retrieval, literature augmentation, and LLM-based interpretation.**
+
+核心概念：從一群基因出發，透過多種手段（enrichment、knowledge graph、文獻檢索）擴充上下文，再用 LLM 做整合分析與未知探索。
 
 ---
 
-## 1. 問題定義（Problem Statement）
+## Architecture
 
-### 核心問題
+```mermaid
+flowchart TD
+    INPUT["🧬 Input Gene List"]
+
+    subgraph ENRICH["Phase 1: Enrichment Analysis"]
+        ORA["GeneEnricher\n(GO / KEGG ORA)"]
+    end
+
+    subgraph GRAPH["Phase 2: Knowledge Graph Retrieval"]
+        direction TB
+        KG["KnowledgeGraph\n(NetworkX MultiDiGraph)"]
+        QUERY["Graph Query\nego_graph / PageRank"]
+
+        subgraph KNOWN["已知關係 (底層)"]
+            STRING["STRING DB\n(PPI)"]
+            KEGG_G["KEGG Pathway\n(調控方向)"]
+            REACTOME["Reactome\n(訊號通路)"]
+        end
+
+        subgraph UNKNOWN["潛在關聯 (上層, 後續)"]
+            PUBMED_LLM["PubMed + LLM\nRelationExtractor"]
+        end
+
+        KNOWN --> KG
+        UNKNOWN -.-> KG
+        KG --> QUERY
+    end
+
+    subgraph EXPAND["Phase 3: Context Expansion"]
+        NEIGHBOR["擴充基因\n(Graph Neighbors)"]
+        ENRICH2["二次 Enrichment\n(擴充後的基因集)"]
+        PUBMED["PubMedFetcher\n(targeted abstracts)"]
+        WEB["WebSearcher\n(Tavily)"]
+    end
+
+    subgraph LLM_PHASE["Phase 4: LLM Integration"]
+        PROMPT["PromptGenerator\n(組合所有 context)"]
+        LLM["LLM Analysis\n(GPT-4o / Claude)"]
+        OUTPUT["📊 Analysis Report\n+ Novel Hypotheses"]
+    end
+
+    INPUT --> ORA
+    INPUT --> QUERY
+    QUERY --> NEIGHBOR
+    NEIGHBOR --> ENRICH2
+    ORA --> PROMPT
+    ENRICH2 --> PROMPT
+    NEIGHBOR --> PUBMED
+    PUBMED --> PROMPT
+    WEB --> PROMPT
+    PROMPT --> LLM
+    LLM --> OUTPUT
+
+    QUERY -. "gap: 圖上無路徑的基因對" .-> PUBMED_LLM
+    PUBMED_LLM -. "新關係存回圖" .-> KG
+
+    style KNOWN fill:#e8f5e9
+    style UNKNOWN fill:#fff3e0
+    style LLM_PHASE fill:#e3f2fd
+```
+
+---
+
+## Problem Statement
 
 給定一組基因（gene set），研究者希望知道：
 
@@ -16,177 +81,52 @@
 
 ### 現有方法的限制
 
-* 傳統 enrichment（ORA / GSEA）：
-
-  * 結果分散在多個資料庫
-  * 缺乏整合與語境解釋
-* 文獻閱讀：
-
-  * 高成本、不可重現
-* LLM 直接生成：
-
-  * 缺乏可驗證的基礎結果
+* 傳統 enrichment（ORA / GSEA）：結果分散在多個資料庫，缺乏整合與語境解釋
+* 文獻閱讀：高成本、不可重現
+* LLM 直接生成：缺乏可驗證的基礎結果
 
 ---
 
-## 2. 系統目標（Design Goals）
+## Modules
 
-EnrichRAG 的設計目標是：
+### Enrichment Layer
 
-1. **標準化**：以 canonical enrichment（GO / KEGG）作為基礎
-2. **可整合**：跨資料庫整合 enrichment 結果
-3. **可擴充**：未來可加入文獻與 RAG，但不破壞核心 API
-4. **可解釋**：每一步都有清楚的輸入、輸出與假設
+| Module | Description | Status |
+|--------|-------------|--------|
+| **GeneEnricher** | ORA analysis (GO/KEGG) with gseapy | Done |
+| **PromptGenerator** | YAML template + LangChain LCEL | Done |
 
----
+### Retrieval Layer
 
-## 3. 系統整體架構（High-level Architecture）
+| Module | Description | Status |
+|--------|-------------|--------|
+| **PubMedFetcher** | Entrez API abstract retrieval | Done |
+| **WebSearcher** | Tavily Search integration | Done |
+| **RelationExtractor** | LLM-based gene relation extraction (Pydantic structured output) | Done |
 
-```
-Input: gene_set
-   │
-   ▼
-[ Enrichment Layer ]
-   ├── GO ORA
-   ├── KEGG ORA
-   │
-   ▼
-[ Integration Layer ]
-   ├── term aggregation
-   ├── gene coverage
-   ├── cross-database consensus
-   │
-   ▼
-[ (Optional) Interpretation Layer ]
-   ├── literature retrieval
-   ├── graph expansion
-   └── RAG-based explanation
-```
+### Knowledge Graph Layer
 
-**第一版（v0.1）只實作前兩層**。
+| Module | Description | Status |
+|--------|-------------|--------|
+| **KnowledgeGraph** | NetworkX MultiDiGraph wrapper with graph query | Planned |
+| **STRING DB importer** | PPI edges (`type="ppi"`) | Planned |
+| **KEGG Pathway importer** | Directed regulatory edges (`type="pathway"`) | Planned |
+
+### LLM Integration
+
+| Module | Description | Status |
+|--------|-------------|--------|
+| **LLM Chain** | GPT-4o / Claude with StrOutputParser | Done |
 
 ---
 
-## 4. 模組級規格（Module Specifications）
-
----
-
-### 4.1 Enrichment Layer
-
-**Canonical Pathway Enrichment**
-
-#### 功能
-
-對輸入 gene set 執行標準 ORA。
-
-#### 方法
-
-* Statistical test：Hypergeometric / Fisher’s exact test
-* Multiple testing correction：BH-FDR
-* Background：user-defined 或預設全基因集合
-
-#### 輸入
-
-```text
-gene_set: List[str]
-```
-
-#### 輸出（每個資料庫）
-
-```json
-[
-  {
-    "term_id": "GO:0006915",
-    "term_name": "apoptotic process",
-    "p_value": 1e-4,
-    "adj_p_value": 1e-3,
-    "genes": ["TP53", "BAX", "CASP3"]
-  }
-]
-```
-
-#### 專有名詞
-
-> **Over-Representation Analysis (ORA)**
-> **Canonical pathway databases**
-
----
-
-### 4.2 Integration Layer
-
-**Cross-database Enrichment Integration**
-
-#### 功能
-
-將多個 enrichment 結果整合為統一、可比較的結構。
-
-#### 核心概念
-
-* **Gene coverage**
-
-  ```
-  coverage = |genes ∩ input_gene_set|
-  ```
-* **Source annotation**（GO / KEGG / …）
-* **Ranking normalization**
-
-#### 輸入
-
-```json
-{
-  "GO": [...],
-  "KEGG": [...]
-}
-```
-
-#### 輸出（統一格式）
-
-```json
-{
-  "GO": [
-    {
-      "term_id": "...",
-      "term_name": "...",
-      "adj_p_value": ...,
-      "genes": [...],
-      "coverage": 3,
-      "source": "GO"
-    }
-  ],
-  "KEGG": [...]
-}
-```
-
-#### 可擴充功能（未來）
-
-* GO ↔ KEGG term overlap
-* semantic similarity
-* meta-enrichment score
-
-#### 專有名詞
-
-> **Meta-enrichment**
-> **Gene coverage-based ranking**
-
----
-
-## 5. 核心 API 規格（最重要）
-
-### 5.1 主入口函數
+## Core API
 
 ```python
 enrich(gene_set: List[str]) -> EnrichmentReport
 ```
 
-#### 行為定義
-
-1. 執行所有 canonical enrichment
-2. 整合結果
-3. 回傳結構化結果（不產生文字敘述）
-
----
-
-### 5.2 EnrichmentReport（概念 schema）
+### EnrichmentReport schema
 
 ```json
 {
@@ -199,55 +139,63 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 }
 ```
 
-這個 schema **未來不可破壞**，只可擴充。
+### Relation Table schema
+
+```
+| Source Gene | Target Gene | Relation | Type    | Source DB | Evidence                        |
+|-------------|-------------|----------|---------|-----------|---------------------------------|
+| TP53        | EGFR        | up       | pathway | KEGG      | KEGG:hsa05200                   |
+| TP53        | MDM2        | up       | ppi     | STRING    | combined_score=0.999            |
+| RBM10       | MYC         | down     | llm     | PubMed    | "...inhibiting transcription..." |
+```
 
 ---
 
-## 6. Interpretation Layer（v0.2+，先定義不實作）
+## Roadmap
 
-### 目的
+### v0.1 - Core Framework (Completed)
 
-回答 enrichment 本身無法回答的問題：
+- [x] **GeneEnricher**: ORA analysis (GO/KEGG)
+- [x] **PromptGenerator**: YAML template + LangChain LCEL
+- [x] **LLM Integration**: GPT-4o chain with StrOutputParser
+- [x] **WebSearcher**: Tavily Search integration
+- [x] **PubMedFetcher**: Entrez API abstract retrieval
+- [x] **RelationExtractor**: LLM-based relation extraction with Pydantic structured output
 
-> 「這些 pathway 為什麼會一起出現？」
+### v0.2 - Knowledge Graph: 已知關係 (In Progress)
 
-### 子模組（規劃）
+**KnowledgeGraph module**
+- [ ] `KnowledgeGraph` class (NetworkX MultiDiGraph wrapper)
+  - [ ] Unified edge schema: `(source, target, {type, direction, source_db, evidence, ...})`
+  - [ ] `add_relations(df)` — batch add edges from DataFrame
+  - [ ] `get_neighbors(gene, radius)` — ego subgraph
+  - [ ] `rank_nodes(method)` — degree / PageRank
+  - [ ] `to_context(genes)` — convert to text for prompt injection
+  - [ ] Persistence: save/load GraphML or JSON
 
-1. **Literature retrieval**
+**Import known biological graphs**
+- [ ] **STRING DB** — download TSV, import PPI edges (`type="ppi"`)
+- [ ] **KEGG Pathway** — import directed regulatory edges (`type="pathway"`)
+- [ ] (optional) Reactome / DisGeNET
 
-   * PubMed abstract search
-2. **Gene–gene interaction graph**
+**Pipeline integration**
+- [ ] `genes → KnowledgeGraph.get_neighbors() → expanded_genes`
+- [ ] `expanded_genes → GeneEnricher (second-round enrichment)`
+- [ ] `expanded_genes → PubMedFetcher (targeted search)`
+- [ ] All context assembled → PromptGenerator → LLM
 
-   * Co-occurrence / polarity-aware edges
-3. **k-hop neighborhood expansion**
-4. **RAG-based explanation**
+### v0.3 - Knowledge Graph: 潛在關聯 (Future)
 
-#### 專有名詞
+**LLM-based Relation Extraction (on-demand)**
+- [ ] Detect gaps: find gene pairs with no path in graph
+- [ ] For gap pairs → PubMedFetcher → RelationExtractor → extract relations
+- [ ] Store new relations back to KnowledgeGraph (graph grows with usage)
+- [ ] Cache layer: avoid duplicate queries for same gene pairs
 
-* Literature-derived gene network
-* Retrieval-augmented biological interpretation
+### v1.0 - Full Pipeline (Future)
 
----
-
-## 7. 版本里程碑（Roadmap）
-
-### v0.1 — Canonical Enrichment Core
-
-* enrich()
-* GO + KEGG ORA
-* integration schema
-
-### v0.2 — Structured Interpretation
-
-* rule-based summaries
-* GO/KEGG overlap analysis
-
-### v0.3 — Literature Augmentation
-
-* PubMed retrieval
-* gene interaction graph
-
-### v1.0 — EnrichRAG
-
-* Full RAG explanation layer
-* Reproducible interpretation reports
+- [ ] CLI: `enrichrag analyze --genes TP53 KRAS EGFR --disease cancer`
+- [ ] Single command: enrich → graph expand → literature → LLM report
+- [ ] PubMed query cache (SQLite/Parquet)
+- [ ] (optional) Embedding index for semantic retrieval (ChromaDB)
+- [ ] (optional) Neo4j to replace NetworkX for large persistent graphs
