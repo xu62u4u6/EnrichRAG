@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     pubmed_email: str = "your@email.com"
     llm_model: str = "gpt-4o"
     log_level: str = "INFO"
+    server_host: str = "127.0.0.1"
+    server_port: int = 9001
 
 
 settings = Settings()

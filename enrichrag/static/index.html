@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>enrichRAG</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --indigo-50: #eef2ff; --indigo-100: #e0e7ff; --indigo-600: #4f46e5; --indigo-700: #4338ca;
+      --slate-50: #f8fafc; --slate-100: #f1f5f9; --slate-200: #e2e8f0; --slate-300: #cbd5e1;
+      --slate-400: #94a3b8; --slate-500: #64748b; --slate-600: #475569; --slate-700: #334155;
+      --slate-800: #1e293b; --slate-900: #0f172a;
+      --emerald-500: #10b981; --red-500: #ef4444; --red-50: #fef2f2;
+      --radius: 12px; --radius-lg: 16px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.05); --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--slate-50); color: var(--slate-800);
+      display: flex; min-height: 100vh; line-height: 1.6;
+    }
+
+    /* ---- Sidebar ---- */
+    .sidebar {
+      width: 260px; background: #fff; border-right: 1px solid var(--slate-200);
+      display: flex; flex-direction: column; flex-shrink: 0; position: sticky;
+      top: 0; height: 100vh; z-index: 10;
+    }
+    .sidebar-brand {
+      padding: 1.5rem; border-bottom: 1px solid var(--slate-100);
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .sidebar-brand .icon {
+      width: 36px; height: 36px; background: var(--indigo-600); color: #fff;
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    }
+    .sidebar-brand h1 { font-size: 1.15rem; font-weight: 700; color: var(--slate-900); }
+    .sidebar-brand small {
+      display: block; font-size: 0.6rem; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--slate-400); font-weight: 600;
+    }
+    .sidebar nav { padding: 1rem; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .nav-btn {
+      width: 100%; display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.65rem 1rem; border-radius: 8px; border: none; background: none;
+      font-size: 0.875rem; font-weight: 500; color: var(--slate-600);
+      cursor: pointer; transition: all .15s; text-align: left;
+    }
+    .nav-btn:hover { background: var(--slate-100); }
+    .nav-btn.active { background: var(--indigo-50); color: var(--indigo-700); }
+    .nav-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .nav-btn .badge {
+      margin-left: auto; background: var(--slate-100); color: var(--slate-500);
+      padding: 0.15em 0.55em; border-radius: 99px; font-size: 0.75rem;
+    }
+    .nav-btn.active .badge { background: var(--indigo-100); color: var(--indigo-700); }
+
+    /* ---- Main ---- */
+    .main { flex: 1; overflow-y: auto; padding: 2.5rem; }
+    .main-inner { max-width: 960px; margin: 0 auto; }
+
+    /* ---- Views ---- */
+    .view { display: none; animation: fadeUp .35s ease; }
+    .view.active { display: block; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .page-header { margin-bottom: 2rem; }
+    .page-header h2 { font-size: 1.5rem; font-weight: 700; color: var(--slate-900); margin-bottom: 0.25rem; }
+    .page-header p { color: var(--slate-500); font-size: 0.95rem; }
+
+    /* ---- Card ---- */
+    .card {
+      background: #fff; border-radius: var(--radius-lg); border: 1px solid var(--slate-200);
+      box-shadow: var(--shadow-sm); overflow: hidden;
+    }
+    .card-body { padding: 1.5rem 2rem; }
+    .card-footer {
+      padding: 1rem 2rem; background: var(--slate-50);
+      border-top: 1px solid var(--slate-200); display: flex; justify-content: flex-end; gap: 0.75rem;
+    }
+
+    /* ---- Form ---- */
+    label { display: block; font-size: 0.875rem; font-weight: 600; color: var(--slate-700); margin-bottom: 0.5rem; }
+    label .hint { font-weight: 400; color: var(--slate-400); margin-left: 0.5rem; }
+    textarea, input[type="text"], input[type="number"] {
+      width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--slate-300);
+      border-radius: var(--radius); font-size: 0.875rem; color: var(--slate-700);
+      transition: border-color .15s, box-shadow .15s; font-family: inherit;
+    }
+    textarea { min-height: 8rem; resize: vertical; font-family: 'SF Mono', 'Fira Code', monospace; }
+    textarea:focus, input:focus {
+      outline: none; border-color: var(--indigo-600);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, .15);
+    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+    .form-group { margin-bottom: 1.5rem; }
+
+    /* ---- Buttons ---- */
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.6rem 1.25rem; border-radius: 8px; border: none;
+      font-size: 0.875rem; font-weight: 500; cursor: pointer;
+      transition: all .15s; white-space: nowrap;
+    }
+    .btn-primary { background: var(--indigo-600); color: #fff; box-shadow: var(--shadow-sm); }
+    .btn-primary:hover { background: var(--indigo-700); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-secondary { background: #fff; color: var(--slate-700); border: 1px solid var(--slate-200); box-shadow: var(--shadow-sm); }
+    .btn-secondary:hover { background: var(--slate-50); }
+
+    /* ---- Loading ---- */
+    .loading-view {
+      display: none; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 55vh; animation: fadeUp .3s ease;
+    }
+    .loading-view.active { display: flex; }
+    .spinner-wrap { position: relative; width: 80px; height: 80px; margin-bottom: 1.5rem; }
+    .spinner-track { position: absolute; inset: 0; border: 4px solid var(--indigo-100); border-radius: 50%; }
+    .spinner {
+      position: absolute; inset: 0; border: 4px solid var(--indigo-600);
+      border-radius: 50%; border-top-color: transparent; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-icon {
+      position: absolute; inset: 0; display: flex; align-items: center;
+      justify-content: center; color: var(--indigo-600); animation: pulse 1.5s ease infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+    /* ---- Results header ---- */
+    .results-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;
+    }
+    .results-header h2 {
+      display: flex; align-items: center; gap: 0.75rem;
+      font-size: 1.5rem; font-weight: 700; color: var(--slate-900);
+    }
+    .results-header .meta { font-size: 0.875rem; color: var(--slate-500); margin-top: 0.25rem; }
+    .results-header .meta b { color: var(--slate-700); }
+    .results-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+    .check-icon { color: var(--emerald-500); width: 24px; height: 24px; }
+
+    /* ---- Main Tabs ---- */
+    .tabs { display: flex; border-bottom: 1px solid var(--slate-200); width: 100%; background: #fff; }
+    .tab-btn {
+      flex: 1;
+      padding: 0.85rem 1rem; font-size: 0.875rem; font-weight: 600;
+      color: var(--slate-500); background: none; border: none;
+      border-bottom: 2px solid transparent; cursor: pointer;
+      transition: all .15s; white-space: nowrap;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    }
+    .tab-btn:hover { color: var(--slate-700); background: var(--slate-50); }
+    .tab-btn.active {
+      color: var(--indigo-700); border-bottom-color: var(--indigo-600);
+      background: rgba(79,70,229,.03);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ---- Sub Tabs ---- */
+    .sub-tabs {
+      display: flex; gap: 0; background: var(--slate-50);
+      border-bottom: 1px solid var(--slate-200); padding: 0 1rem;
+    }
+    .sub-tab-btn {
+      padding: 0.55rem 1rem; font-size: 0.8rem; font-weight: 500;
+      color: var(--slate-500); background: none; border: none;
+      border-bottom: 2px solid transparent; cursor: pointer;
+      transition: all .15s; display: flex; align-items: center; gap: 0.4rem;
+    }
+    .sub-tab-btn:hover { color: var(--slate-700); }
+    .sub-tab-btn.active { color: var(--indigo-600); border-bottom-color: var(--indigo-600); }
+    .sub-panel { display: none; }
+    .sub-panel.active { display: block; }
+
+    /* ---- Sortable Table ---- */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    thead { background: var(--slate-50); }
+    th {
+      padding: 1rem 1.25rem; text-align: left; font-weight: 600;
+      color: var(--slate-700); text-transform: uppercase; font-size: 0.75rem;
+      letter-spacing: 0.04em; cursor: pointer; user-select: none;
+      border-bottom: 1px solid var(--slate-200); transition: background .15s;
+    }
+    th:hover { background: var(--slate-100); }
+    th .sort-icon { display: inline-block; margin-left: 4px; opacity: .3; }
+    th.sorted .sort-icon { opacity: 1; color: var(--indigo-600); }
+    td {
+      padding: 1rem 1.25rem; color: var(--slate-600);
+      border-bottom: 1px solid var(--slate-200); vertical-align: top;
+    }
+    tr:hover td { background: var(--slate-50); }
+    td.cell-term { font-weight: 500; color: var(--slate-800); max-width: 360px; white-space: normal; }
+    td.cell-genes {
+      font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem;
+      color: var(--indigo-600); background: var(--indigo-50);
+      padding: 0.2rem 0.5rem; border-radius: 4px;
+    }
+
+    /* ---- Report ---- */
+    .report-content { padding: 2.5rem; line-height: 1.8; color: var(--slate-700); max-width: 800px; margin: 0 auto; }
+    .report-content h1, .report-content h2, .report-content h3 { color: var(--slate-900); margin: 1.5rem 0 1rem; font-weight: 700; }
+    .report-content li { margin-bottom: 0.5rem; }
+    .report-content code { background: var(--slate-100); padding: 0.2em 0.4em; border-radius: 4px; font-size: 0.85em; }
+
+    /* ---- Sources ---- */
+    .sources-list { padding: 1.5rem 2rem; }
+    .source-item {
+      padding: 1rem 0; border-bottom: 1px solid var(--slate-100);
+    }
+    .source-item:last-child { border-bottom: none; }
+    .source-item a {
+      font-weight: 600; color: var(--indigo-600); text-decoration: none; font-size: 0.95rem;
+    }
+    .source-item a:hover { text-decoration: underline; }
+    .source-item .source-url {
+      font-size: 0.75rem; color: var(--slate-400); margin-top: 0.15rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .source-item .source-snippet {
+      font-size: 0.85rem; color: var(--slate-600); margin-top: 0.4rem;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .source-item .source-meta {
+      font-size: 0.75rem; color: var(--slate-400); margin-top: 0.2rem;
+    }
+
+    /* ---- History ---- */
+    .history-list { list-style: none; }
+    .history-list button {
+      width: 100%; text-align: left; padding: 1.25rem 1.5rem; border: none;
+      background: none; cursor: pointer; display: flex;
+      align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--slate-100);
+    }
+    .history-list button:hover { background: var(--slate-50); }
+    .hist-info .hist-title { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem; }
+    .hist-info .hist-disease { font-weight: 700; color: var(--slate-900); }
+    .hist-info .gene-badge {
+      font-size: 0.7rem; font-weight: 600; color: var(--indigo-600);
+      background: var(--indigo-50); padding: 0.2em 0.6em; border-radius: 99px;
+    }
+    .hist-info .hist-genes { font-size: 0.85rem; color: var(--slate-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; }
+    .hist-time { font-size: 0.8rem; color: var(--slate-400); display: flex; align-items: center; gap: 4px; }
+
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--slate-900);
+      color: #fff; padding: 0.85rem 1.5rem; border-radius: 10px; font-size: 0.875rem;
+      box-shadow: 0 5px 15px rgba(0,0,0,.2); opacity: 0;
+      transform: translateY(10px); transition: all .3s cubic-bezier(0.18, 0.89, 0.32, 1.28); z-index: 999;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    [data-lucide] { width: 18px; height: 18px; }
+  </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="icon"><i data-lucide="dna"></i></div>
+    <div>
+      <h1>enrichRAG</h1>
+      <small>Literature-Augmented</small>
+    </div>
+  </div>
+  <nav>
+    <button class="nav-btn active" data-view="input" onclick="switchView('input')">
+      <i data-lucide="plus-circle"></i> New Analysis
+    </button>
+    <button class="nav-btn" data-view="results" onclick="switchView('results')" disabled id="navResults">
+      <i data-lucide="layout-dashboard"></i> Results
+    </button>
+    <button class="nav-btn" data-view="history" onclick="switchView('history')">
+      <i data-lucide="history"></i> History <span class="badge" id="historyBadge">0</span>
+    </button>
+  </nav>
+</aside>
+
+<!-- Main -->
+<div class="main">
+  <div class="main-inner">
+
+    <!-- VIEW: Input -->
+    <div class="view active" id="view-input">
+      <div class="page-header">
+        <h2>Setup Analysis</h2>
+        <p>Provide your gene set and disease context to run a literature-augmented enrichment analysis.</p>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label>Gene Symbols <span class="hint">(comma, space, or newline separated)</span></label>
+            <textarea id="genes" placeholder="e.g. TP53 KRAS EGFR BRCA1">TP53 KRAS EGFR</textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Disease Context</label>
+              <input type="text" id="disease" value="cancer" placeholder="e.g. breast cancer">
+            </div>
+            <div class="form-group">
+              <label>P-value Threshold</label>
+              <input type="number" id="pval" value="0.05" min="0" max="1" step="0.01">
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-primary" id="runBtn" onclick="runAnalysis()">
+            <i data-lucide="play"></i> Run Pipeline
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: Loading -->
+    <div class="loading-view" id="view-loading">
+      <div class="spinner-wrap">
+        <div class="spinner-track"></div>
+        <div class="spinner"></div>
+        <div class="spinner-icon"><i data-lucide="settings"></i></div>
+      </div>
+      <h3>Processing Data</h3>
+      <p class="status-msg" id="loadingMsg">Starting...</p>
+    </div>
+
+    <!-- VIEW: Results -->
+    <div class="view" id="view-results">
+      <div class="results-header">
+        <div>
+          <h2>
+            <i data-lucide="check-circle-2" class="check-icon"></i>
+            Analysis Complete
+          </h2>
+          <p class="meta" id="resultsMeta"></p>
+        </div>
+        <div class="results-actions">
+          <button class="btn btn-secondary" onclick="copyReport()">
+            <i data-lucide="copy"></i> Copy Report
+          </button>
+          <button class="btn btn-secondary" onclick="downloadJSON()">
+            <i data-lucide="download"></i> Export JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="tabs" id="resultTabs"></div>
+        <div id="tabPanels"></div>
+      </div>
+    </div>
+
+    <!-- VIEW: History -->
+    <div class="view" id="view-history">
+      <div class="page-header">
+        <h2>Analysis History</h2>
+        <p>Review your past enrichment analyses.</p>
+      </div>
+      <div class="card" id="historyCard"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MAX_HISTORY = 20;
+let currentResult = null;
+let currentView = 'input';
+
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  renderHistory();
+});
+
+function switchView(name) {
+  if (name === 'results' && !currentResult) return;
+  currentView = name;
+  document.querySelectorAll('.view, .loading-view').forEach(v => v.classList.remove('active'));
+  const el = document.getElementById('view-' + name);
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === name);
+  });
+  lucide.createIcons();
+}
+
+function showToast(msg, ms = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+function runAnalysis() {
+  const genes = document.getElementById('genes').value.trim();
+  const disease = document.getElementById('disease').value.trim();
+  const pval = document.getElementById('pval').value;
+  if (!genes) return;
+
+  switchView('loading');
+  document.getElementById('loadingMsg').textContent = 'Initializing...';
+  document.getElementById('runBtn').disabled = true;
+
+  const params = new URLSearchParams({ genes, disease, pval });
+  const es = new EventSource('/api/analyze/stream?' + params);
+
+  es.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.event === 'result') {
+      es.close();
+      currentResult = msg.data;
+      renderResult(msg.data);
+      saveHistory(msg.data);
+      document.getElementById('runBtn').disabled = false;
+      document.getElementById('navResults').disabled = false;
+      switchView('results');
+    } else if (msg.event === 'error') {
+      es.close();
+      document.getElementById('runBtn').disabled = false;
+      document.getElementById('loadingMsg').textContent = msg.message;
+      setTimeout(() => switchView('input'), 2000);
+    } else {
+      document.getElementById('loadingMsg').textContent = msg.message;
+    }
+  };
+
+  es.onerror = () => {
+    es.close();
+    document.getElementById('runBtn').disabled = false;
+    document.getElementById('loadingMsg').textContent = 'Connection lost.';
+    setTimeout(() => switchView('input'), 2000);
+  };
+}
+
+function renderResult(data) {
+  const er = data.enrichment_results || {};
+  const sources = data.sources || {};
+  const webSources = sources.web || data.web_sources || [];
+  const pubmedSources = sources.pubmed || [];
+
+  document.getElementById('resultsMeta').innerHTML =
+    `Context: <b>${esc(data.disease_context)}</b> &nbsp;|&nbsp; Genes: <b>${data.input_genes.length} queried</b>`;
+
+  // Main tabs: Enrichment | Sources | Report
+  const mainTabs = [
+    { key: 'enrichment', label: 'Enrichment', icon: 'bar-chart-3' },
+    { key: 'sources', label: 'Sources', icon: 'book-open' },
+    { key: 'report', label: 'LLM Insight Report', icon: 'file-text' },
+  ];
+
+  let tabsHtml = '';
+  let panelsHtml = '';
+
+  mainTabs.forEach((tab, i) => {
+    const active = i === 0 ? ' active' : '';
+    tabsHtml += `<button class="tab-btn${active}" data-tab="${tab.key}" onclick="switchTab('${tab.key}')"><i data-lucide="${tab.icon}"></i> ${tab.label}</button>`;
+
+    if (tab.key === 'enrichment') {
+      const enrichKeys = Object.keys(er);
+      const subLabels = { GO: 'GO Biological Process', KEGG: 'KEGG Pathways' };
+      let subTabsHtml = '<div class="sub-tabs">';
+      let subPanelsHtml = '';
+      enrichKeys.forEach((k, j) => {
+        const subActive = j === 0 ? ' active' : '';
+        subTabsHtml += `<button class="sub-tab-btn${subActive}" data-subtab="enrich-${k}" onclick="switchSubTab('enrichment','enrich-${k}')"><i data-lucide="database" style="width:14px;height:14px"></i> ${subLabels[k] || k}</button>`;
+        subPanelsHtml += `<div class="sub-panel${subActive}" id="subpanel-enrich-${k}"><div class="table-wrap">${buildTable(er[k] || [])}</div></div>`;
+      });
+      subTabsHtml += '</div>';
+      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${subTabsHtml}${subPanelsHtml}</div>`;
+
+    } else if (tab.key === 'sources') {
+      let subTabsHtml = '<div class="sub-tabs">';
+      let subPanelsHtml = '';
+
+      // PubMed sub-tab
+      const pmActive = ' active';
+      subTabsHtml += `<button class="sub-tab-btn${pmActive}" data-subtab="src-pubmed" onclick="switchSubTab('sources','src-pubmed')"><i data-lucide="graduation-cap" style="width:14px;height:14px"></i> PubMed <span style="font-size:0.7rem;color:var(--slate-400);margin-left:4px">${pubmedSources.length}</span></button>`;
+      subPanelsHtml += `<div class="sub-panel${pmActive}" id="subpanel-src-pubmed"><div class="sources-list">${renderPubmedSources(pubmedSources)}</div></div>`;
+
+      // Web sub-tab
+      subTabsHtml += `<button class="sub-tab-btn" data-subtab="src-web" onclick="switchSubTab('sources','src-web')"><i data-lucide="globe" style="width:14px;height:14px"></i> Web <span style="font-size:0.7rem;color:var(--slate-400);margin-left:4px">${webSources.length}</span></button>`;
+      subPanelsHtml += `<div class="sub-panel" id="subpanel-src-web"><div class="sources-list">${renderWebSources(webSources)}</div></div>`;
+
+      subTabsHtml += '</div>';
+      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${subTabsHtml}${subPanelsHtml}</div>`;
+
+    } else if (tab.key === 'report') {
+      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">
+        <div class="report-content">${marked.parse(data.llm_insight || '_No report generated._')}</div>
+      </div>`;
+    }
+  });
+
+  document.getElementById('resultTabs').innerHTML = tabsHtml;
+  document.getElementById('tabPanels').innerHTML = panelsHtml;
+  lucide.createIcons();
+}
+
+function renderWebSources(sources) {
+  if (!sources.length) return '<div style="padding:3rem;text-align:center;color:#94a3b8">No web search results.</div>';
+  return sources.map(s =>
+    `<div class="source-item">
+      <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || 'Untitled')}</a>
+      <div class="source-url">${esc(s.url)}</div>
+      <div class="source-snippet">${esc(s.content || '')}</div>
+    </div>`
+  ).join('');
+}
+
+function renderPubmedSources(sources) {
+  if (!sources.length) return '<div style="padding:3rem;text-align:center;color:#94a3b8">No PubMed results.</div>';
+  return sources.map(s =>
+    `<div class="source-item">
+      <a href="https://pubmed.ncbi.nlm.nih.gov/${esc(s.pmid)}/" target="_blank" rel="noopener">${esc(s.title || 'Untitled')}</a>
+      <div class="source-meta">PMID: ${esc(s.pmid)} &nbsp;|&nbsp; ${esc(s.journal || '')} &nbsp;|&nbsp; ${esc(s.pub_date || '')} &nbsp;|&nbsp; ${esc(s.authors || '')}</div>
+      <div class="source-snippet">${esc(s.abstract || '')}</div>
+    </div>`
+  ).join('');
+}
+
+function switchSubTab(parentKey, subKey) {
+  const panel = document.getElementById('panel-' + parentKey);
+  panel.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.subtab === subKey));
+  panel.querySelectorAll('.sub-panel').forEach(p => p.classList.toggle('active', p.id === 'subpanel-' + subKey));
+}
+
+function switchTab(key) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + key));
+}
+
+const COL_DEFS = [
+  { key: 'term', label: 'Term', cls: 'cell-term' },
+  { key: 'overlap', label: 'Overlap' },
+  { key: 'p_value', label: 'P-value' },
+  { key: 'p_adjusted', label: 'Adj. P-value' },
+  { key: 'genes', label: 'Genes', cls: 'cell-genes' },
+];
+
+function buildTable(rows) {
+  if (!rows.length) return '<div class="no-data">No significant results found.</div>';
+  let html = '<table><thead><tr>';
+  COL_DEFS.forEach((c, i) => {
+    html += `<th onclick="sortTableCol(this, ${i}, '${c.key}')">${c.label}<span class="sort-icon"><i data-lucide="chevron-up" style="width:14px; height:14px;"></i></span></th>`;
+  });
+  html += '</tr></thead><tbody>';
+  rows.forEach(r => {
+    html += '<tr>';
+    COL_DEFS.forEach(c => {
+      let v = r[c.key];
+      if (typeof v === 'number') v = v < 0.001 ? v.toExponential(2) : parseFloat(v.toFixed(4));
+      html += `<td class="${c.cls || ''}">${v ?? ''}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function sortTableCol(th, colIdx, key) {
+  const table = th.closest('table');
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.rows);
+  const asc = th.dataset.asc !== '1';
+
+  table.querySelectorAll('th').forEach(h => { h.classList.remove('sorted'); h.dataset.asc = ''; });
+  th.classList.add('sorted');
+  th.dataset.asc = asc ? '1' : '0';
+
+  rows.sort((a, b) => {
+    let va = a.cells[colIdx].textContent, vb = b.cells[colIdx].textContent;
+    if (key === 'overlap') {
+      const ra = va.split('/'), rb = vb.split('/');
+      const na = parseInt(ra[0]) / (parseInt(ra[1]) || 1);
+      const nb = parseInt(rb[0]) / (parseInt(rb[1]) || 1);
+      return asc ? na - nb : nb - na;
+    }
+    const na = parseFloat(va), nb = parseFloat(vb);
+    if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+function downloadJSON() {
+  if (!currentResult) return;
+  const blob = new Blob([JSON.stringify(currentResult, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `enrichRAG_${currentResult.disease_context || 'result'}_${Date.now()}.json`;
+  a.click();
+  showToast('JSON downloaded');
+}
+
+function copyReport() {
+  if (!currentResult) return;
+  navigator.clipboard.writeText(currentResult.llm_insight || '').then(() => showToast('Report copied!'));
+}
+
+function getHistory() { return JSON.parse(localStorage.getItem('enrichrag_history_v2') || '[]'); }
+
+function saveHistory(data) {
+  const hist = getHistory();
+  hist.unshift({ ts: new Date().toISOString(), input_genes: data.input_genes, disease_context: data.disease_context, data });
+  if (hist.length > MAX_HISTORY) hist.length = MAX_HISTORY;
+  localStorage.setItem('enrichrag_history_v2', JSON.stringify(hist));
+  renderHistory();
+}
+
+function renderHistory() {
+  const hist = getHistory();
+  document.getElementById('historyBadge').textContent = hist.length;
+  if (!hist.length) {
+    document.getElementById('historyCard').innerHTML = '<div class="empty-state" style="padding:4rem;text-align:center;color:#94a3b8"><i data-lucide="history" style="width:40px;height:40px;margin-bottom:1rem;opacity:0.3"></i><h3>No history yet</h3></div>';
+    lucide.createIcons();
+    return;
+  }
+  let html = '<ul class="history-list">';
+  hist.forEach((h, i) => {
+    const genes = h.input_genes || h.data?.input_genes || [];
+    const disease = h.disease_context || h.data?.disease_context || '';
+    const time = new Date(h.ts).toLocaleString();
+    html += `<li><button onclick="loadHistory(${i})">
+      <div class="hist-info">
+        <div class="hist-title">
+          <span class="hist-disease">${esc(disease)}</span>
+          <span class="gene-badge">${genes.length} genes</span>
+        </div>
+        <div class="hist-genes">${esc(genes.join(', '))}</div>
+      </div>
+      <span class="hist-time">${time} <i data-lucide="chevron-right" style="width:14px;height:14px;"></i></span>
+    </button></li>`;
+  });
+  html += '</ul>';
+  document.getElementById('historyCard').innerHTML = html;
+  lucide.createIcons();
+}
+
+function loadHistory(idx) {
+  const hist = getHistory();
+  if (!hist[idx]) return;
+  currentResult = hist[idx].data;
+  document.getElementById('genes').value = (currentResult.input_genes || []).join(', ');
+  document.getElementById('disease').value = currentResult.disease_context || '';
+  document.getElementById('navResults').disabled = false;
+  renderResult(currentResult);
+  switchView('results');
+  showToast('History loaded');
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>
