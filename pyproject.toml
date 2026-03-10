@@ -16,7 +16,8 @@ dependencies = [
   "python-dotenv",
   "tabulate",
   "networkx",
-  "seaborn"
+  "seaborn",
+  "biopython"
 ]
 
 [project.optional-dependencies]
