@@ -9,8 +9,10 @@
 
 #### **Retrieval (v0.2 - In Progress)**
 
-* [ ] **LLM Integration**: Connect `PromptGenerator` output to GPT-4/Claude API.
-* [ ] **Web Search function**: Implement Tavily/Google Search tool for latest clinical infomations.
+* [x] **LLM Integration**: Connect `PromptGenerator` output to GPT-4/Claude API.
+* [x] **Web Search function**: Implement Tavily Search tool (`WebSearcher`).
+* [x] **PubMedFetcher**: Entrez API abstract retrieval.
+* [x] **RelationExtractor**: LLM-based gene relation extraction with Pydantic structured output.
 
 #### Graph
 * [ ] Merge with PPI graph neighbors (StringDB/BioGRID).
@@ -56,3 +58,8 @@
 * [ ] Implement `ego_graph(radius=N)` to find local network.
 * [ ] Implement `PageRank` or `Degree Centrality` to filter top critical neighbors.
 * [ ] Random walk?
+
+### PubMed Local Index (Future)
+* [ ] **快取層**: 將 Entrez 查詢結果存入本地 SQLite/Parquet，避免重複查詢
+* [ ] **全量索引**: 下載 PubMed baseline XML，抽取摘要建 embedding 向量索引 (ChromaDB/Qdrant)
+* [ ] **Semantic retrieval**: 用 embedding similarity 取代關鍵字搜尋，提升召回品質
