@@ -1,5 +1,5 @@
 _type: prompt
-input_variables: ["context", "genes", "go_table", "kegg_table", "web_search", "pubmed"]
+input_variables: ["context", "genes", "go_table", "kegg_table", "web_search", "pubmed", "relations"]
 template: |
     You are an expert bioinformatician. Analyze the following gene enrichment results.
 
@@ -26,21 +26,27 @@ template: |
     【Web Search Results (Recent Literature)】
     {web_search}
 
-    Please provide a structured analysis in the following format:
+    【Extracted Biomedical Relations】
+    The following entity relations were extracted from PubMed abstracts (gene-gene, gene-disease, drug-disease, etc.):
+    {relations}
 
-    Summary of enrichment signals:
+    Please provide a structured analysis in Markdown. Use the following section headings (as ## headings, without colons):
+
+    # Enrichment Analysis Report
+
+    ## Summary of Enrichment Signals
     - [Summarize the key biological processes and pathways found in the original gene set]
     - [Mention any notable patterns or clusters of terms]
 
-    Interpretation (integrate literature findings where relevant):
+    ## Interpretation
     - [Interpret the biological significance of these findings in the context of the disease/background]
     - [Discuss potential mechanisms linking these genes]
     - [Reference supporting evidence from PubMed abstracts and web search results, citing PMIDs and sources]
 
-    Caveats and potential biases:
+    ## Caveats and Potential Biases
     - [Discuss any potential biases (e.g., study bias for famous genes like TP53)]
     - [Mention if terms are too broad or non-specific]
 
-    Hypothesis-level observations:
+    ## Hypothesis-level Observations
     - [Propose 1-2 testable hypotheses based on the data]
     - [Suggest potential novel connections or regulatory mechanisms]

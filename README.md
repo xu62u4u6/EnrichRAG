@@ -93,16 +93,16 @@ flowchart TD
 
 | Module | Description | Status |
 |--------|-------------|--------|
-| **GeneEnricher** | ORA analysis (GO/KEGG) with gseapy | Done |
-| **PromptGenerator** | YAML template + LangChain LCEL | Done |
+| **GeneEnricher** | ORA analysis (GO/KEGG) with gseapy | ✅ Done |
+| **PromptGenerator** | YAML template + LangChain LCEL | ✅ Done |
 
 ### Retrieval Layer
 
 | Module | Description | Status |
 |--------|-------------|--------|
-| **PubMedFetcher** | Entrez API abstract retrieval | Done |
-| **WebSearcher** | Tavily Search integration | Done |
-| **RelationExtractor** | LLM-based gene relation extraction (Pydantic structured output) | Done |
+| **PubMedFetcher** | Entrez API abstract retrieval | ✅ Done |
+| **WebSearcher** | Tavily Search integration | ✅ Done |
+| **RelationExtractor** | LLM-based relation extraction (Pydantic structured output) | ✅ Done |
 
 ### Knowledge Graph Layer
 
@@ -116,7 +116,17 @@ flowchart TD
 
 | Module | Description | Status |
 |--------|-------------|--------|
-| **LLM Chain** | GPT-4o / Claude with StrOutputParser | Done |
+| **LLM Chain** | GPT-4o / Claude with StrOutputParser | ✅ Done |
+
+### Web UI & Visualization
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Web Interface** | FastAPI + SSE streaming pipeline | ✅ Done |
+| **Pipeline Flowchart** | Animated node states with per-step timers | ✅ Done |
+| **Network Graph** | D3.js force-directed graph (zoom/pan, color-coded entities) | ✅ Done |
+| **Report Rendering** | Markdown → styled HTML with Lora serif typography | ✅ Done |
+| **Tabbed Results** | Enrichment tables, sources, relations, insights | ✅ Done |
 
 ---
 
@@ -153,7 +163,7 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 
 ## Roadmap
 
-### v0.1 - Core Framework (Completed)
+### v0.1 - Core Framework ✅
 
 - [x] **GeneEnricher**: ORA analysis (GO/KEGG)
 - [x] **PromptGenerator**: YAML template + LangChain LCEL
@@ -162,7 +172,17 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 - [x] **PubMedFetcher**: Entrez API abstract retrieval
 - [x] **RelationExtractor**: LLM-based relation extraction with Pydantic structured output
 
-### v0.2 - Knowledge Graph: 已知關係 (In Progress)
+### v0.2 - Web UI & Pipeline Integration ✅
+
+- [x] **Web UI**: FastAPI backend + single-page frontend with SSE streaming
+- [x] **Pipeline Orchestration**: Enrichment → parallel search (Web + PubMed) → relation extraction → LLM synthesis
+- [x] **Animated Pipeline Flowchart**: Real-time node status with elapsed timers, timeout/failure states
+- [x] **D3 Network Graph**: Force-directed visualization with zoom/pan, lazy rendering
+- [x] **Report Typography**: Lora serif font, wider layout, structured Markdown headings
+- [x] **Relations in LLM Prompt**: Extracted biomedical relations fed into analysis for richer interpretation
+- [x] **CLI Interface**: `enrichrag` command via Typer
+
+### v0.3 - Knowledge Graph: 已知關係 (Next)
 
 **KnowledgeGraph module**
 - [ ] `KnowledgeGraph` class (NetworkX MultiDiGraph wrapper)
@@ -176,7 +196,7 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 **Import known biological graphs**
 - [ ] **STRING DB** — download TSV, import PPI edges (`type="ppi"`)
 - [ ] **KEGG Pathway** — import directed regulatory edges (`type="pathway"`)
-- [ ] **PubTator Central** — bulk co-occurrence edges from FTP (`ftp://ftp.ncbi.nlm.nih.gov/pub/lu/PubTatorCentral`). Provides low-cost, large-scale gene-gene and gene-disease co-occurrence relationships mined from PubMed abstracts. Positioning: cheap bulk edges to complement curated databases like STRING and KEGG.
+- [ ] **PubTator Central** — bulk co-occurrence edges from FTP. Provides low-cost, large-scale gene-gene and gene-disease co-occurrence relationships mined from PubMed abstracts.
 - [ ] (optional) Reactome / DisGeNET
 
 **Pipeline integration**
@@ -185,7 +205,7 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 - [ ] `expanded_genes → PubMedFetcher (targeted search)`
 - [ ] All context assembled → PromptGenerator → LLM
 
-### v0.3 - Knowledge Graph: 潛在關聯 (Future)
+### v0.4 - Knowledge Graph: 潛在關聯 (Future)
 
 **LLM-based Relation Extraction (on-demand)**
 - [ ] Detect gaps: find gene pairs with no path in graph
@@ -193,21 +213,17 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 - [ ] Store new relations back to KnowledgeGraph (graph grows with usage)
 - [ ] Cache layer: avoid duplicate queries for same gene pairs
 
-### Web UI — Data Visualization (Planned)
+### v0.5 - Visualization Enhancements (Future)
 
 **Enrichment Charts**
 - [ ] Enrichment bar chart — top GO/KEGG terms sorted by -log10(p-adjusted)
 - [ ] Dot plot — x=gene count, y=term, size=overlap ratio, color=p-value
 - [ ] Gene-term heatmap — overlap matrix (genes × pathways)
 
-**Network Graph**
-- [ ] Gene interaction network — force-directed graph from RelationExtractor output
+**Network Graph Enhancements**
 - [ ] Node sizing by degree / PageRank, edge coloring by relation type
 - [ ] Interactive: hover to highlight neighbors, click to inspect evidence
-
-**Infrastructure**
-- [ ] Lightweight chart library (e.g. D3.js or Chart.js) integration
-- [ ] `/api/graph` endpoint — return graph JSON (nodes + edges) for frontend rendering
+- [ ] `/api/graph` endpoint — return graph JSON for frontend rendering
 
 ### v1.0 - Full Pipeline (Future)
 

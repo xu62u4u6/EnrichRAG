@@ -106,6 +106,7 @@ def run_pipeline(
                 "kegg_table": kegg_table if kegg_table else "No significant enrichment results",
                 "web_search": web_context if web_context else "No web search results available.",
                 "pubmed": pubmed_context if pubmed_context else "No PubMed results available.",
+                "relations": relations_df.to_markdown(index=False) if not relations_df.empty else "No extracted relations available.",
             }
             insight = chain.invoke(inputs)
             _progress("llm", "LLM report generated.")

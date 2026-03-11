@@ -8,7 +8,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -110,7 +110,7 @@
 
     /* ---- Main ---- */
     .main { flex: 1; overflow-y: auto; padding: 2rem 2.5rem; }
-    .main-inner { max-width: 980px; margin: 0 auto; }
+    .main-inner { width: 90%; max-width: 1600px; margin: 0 auto; }
 
     /* ---- Views ---- */
     .view { display: none; animation: fadeUp .35s cubic-bezier(.16,1,.3,1); }
@@ -267,6 +267,30 @@
       border-color: var(--gray-300); color: var(--gray-800);
       background: var(--gray-50);
     }
+
+    .pipe-node[data-status="failed"] { opacity: 1; }
+    .pipe-node[data-status="failed"] .node-circle {
+      border-color: var(--red-500); color: var(--red-500);
+      background: var(--red-50);
+      box-shadow: 0 0 0 4px rgba(239,68,68,.1);
+    }
+    .pipe-node[data-status="failed"] .node-title { color: var(--red-500); }
+    .pipe-node[data-status="timeout"] { opacity: 1; }
+    .pipe-node[data-status="timeout"] .node-circle {
+      border-color: var(--amber-600); color: var(--amber-600);
+      background: var(--amber-50);
+      box-shadow: 0 0 0 4px rgba(217,119,6,.1);
+    }
+    .pipe-node[data-status="timeout"] .node-title { color: var(--amber-600); }
+
+    .pipe-node .node-timer {
+      font-size: 9px; font-family: var(--font-mono);
+      color: var(--gray-400); margin-top: 2px;
+      min-height: 14px;
+    }
+    .pipe-node[data-status="active"] .node-timer { color: var(--gray-700); }
+    .pipe-node[data-status="failed"] .node-timer { color: var(--red-500); }
+    .pipe-node[data-status="timeout"] .node-timer { color: var(--amber-600); }
 
     .pipe-line {
       transition: stroke .4s, stroke-width .3s, opacity .4s;
@@ -458,41 +482,45 @@
     .report-banner b { color: var(--gray-700); font-weight: 600; }
     .report-content {
       padding: 2rem 2.5rem 2.5rem; line-height: 1.85; color: var(--gray-700);
-      max-width: 780px; margin: 0 auto; font-size: 0.9rem;
+      max-width: 1120px; margin: 0 auto; font-size: 1.05rem;
+      font-family: 'Lora', 'Georgia', serif; letter-spacing: -0.01em;
     }
     .report-content h1 {
-      font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;
-      color: var(--gray-900); margin: 2rem 0 0.6rem;
-      padding-bottom: 0.4rem; border-bottom: 1px solid var(--gray-200);
+      font-family: var(--font-display); font-size: 1.5rem; font-weight: 700;
+      color: var(--gray-900); margin: 2.5rem 0 0.6rem;
+      padding-bottom: 0.5rem; border-bottom: 2px solid var(--gray-900);
     }
     .report-content h2 {
-      font-family: var(--font-display); font-size: 1.15rem; font-weight: 600;
-      color: var(--gray-900); margin: 1.5rem 0 0.5rem;
+      font-family: var(--font-display); font-size: 1.25rem; font-weight: 600;
+      color: var(--gray-900); margin: 2rem 0 0.5rem;
+      padding-bottom: 0.3rem; border-bottom: 1px solid var(--gray-200);
     }
     .report-content h3 {
-      font-size: 0.9rem; font-weight: 700; color: var(--gray-800);
-      margin: 1.25rem 0 0.4rem;
+      font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; color: var(--gray-800);
+      margin: 1.5rem 0 0.4rem;
     }
-    .report-content p { margin-bottom: 0.7rem; }
-    .report-content ul, .report-content ol { padding-left: 1.25rem; margin-bottom: 0.85rem; }
-    .report-content li { margin-bottom: 0.35rem; }
+    .report-content p { margin-bottom: 0.85rem; }
+    .report-content ul, .report-content ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+    .report-content li { margin-bottom: 0.4rem; padding-left: 0.15rem; }
+    .report-content li::marker { color: var(--teal-600); font-size: 1.2em; }
     .report-content code {
-      background: var(--gray-100); padding: 0.15em 0.4em; border-radius: 4px;
+      background: var(--gray-100); padding: 0.15em 0.45em; border-radius: 4px;
       font-size: 0.82em; font-family: var(--font-mono); color: var(--teal-700);
     }
     .report-content blockquote {
-      border-left: 3px solid var(--gray-900); padding: 0.6rem 1rem;
-      margin: 1rem 0; background: var(--gray-50); border-radius: 0 6px 6px 0;
-      color: var(--gray-600);
+      border-left: 3px solid var(--teal-500); padding: 0.75rem 1.2rem;
+      margin: 1.2rem 0; background: var(--teal-50); border-radius: 0 6px 6px 0;
+      color: var(--gray-600); font-style: italic;
     }
     .report-content strong { color: var(--gray-900); }
-    .report-content a { color: var(--teal-600); text-decoration: none; }
-    .report-content a:hover { text-decoration: underline; }
-    .report-content table { border-collapse: collapse; margin: 1rem 0; width: 100%; }
+    .report-content a { color: var(--teal-600); text-decoration: underline; text-decoration-color: var(--teal-100); text-underline-offset: 2px; }
+    .report-content a:hover { text-decoration-color: var(--teal-500); }
+    .report-content hr { border: none; border-top: 1px solid var(--gray-200); margin: 2rem 0; }
+    .report-content table { border-collapse: collapse; margin: 1.2rem 0; width: 100%; }
     .report-content table th, .report-content table td {
-      border: 1px solid var(--gray-200); padding: 0.45rem 0.7rem; font-size: 0.82rem; text-align: left;
+      border: 1px solid var(--gray-200); padding: 0.5rem 0.75rem; font-size: 0.85rem; text-align: left;
     }
-    .report-content table th { background: var(--gray-50); font-weight: 700; }
+    .report-content table th { background: var(--gray-50); font-weight: 700; color: var(--gray-800); }
 
     /* ===================== SOURCES ===================== */
     .sources-list { padding: 0.5rem 0; }
@@ -688,6 +716,7 @@
           <div class="node-label">
             <div class="node-title">Enrichment</div>
             <div class="node-sub">GO & KEGG</div>
+            <div class="node-timer"></div>
           </div>
         </div>
         <div class="pipe-node" data-status="pending" id="node-search" style="left:270px;top:65px">
@@ -695,6 +724,7 @@
           <div class="node-label">
             <div class="node-title">Web Search</div>
             <div class="node-sub">Tavily API</div>
+            <div class="node-timer"></div>
           </div>
         </div>
         <div class="pipe-node" data-status="pending" id="node-pubmed" style="left:270px;top:215px">
@@ -702,6 +732,7 @@
           <div class="node-label">
             <div class="node-title">PubMed</div>
             <div class="node-sub">Entrez API</div>
+            <div class="node-timer"></div>
           </div>
         </div>
         <div class="pipe-node" data-status="pending" id="node-extraction" style="left:450px;top:140px">
@@ -709,6 +740,7 @@
           <div class="node-label">
             <div class="node-title">Extraction</div>
             <div class="node-sub">Relations</div>
+            <div class="node-timer"></div>
           </div>
         </div>
         <div class="pipe-node" data-status="pending" id="node-llm" style="left:630px;top:140px">
@@ -716,6 +748,7 @@
           <div class="node-label">
             <div class="node-title">Synthesis</div>
             <div class="node-sub">LLM Gen</div>
+            <div class="node-timer"></div>
           </div>
         </div>
         <div class="pipe-node" data-status="pending" id="node-done" style="left:860px;top:140px">
@@ -723,6 +756,7 @@
           <div class="node-label">
             <div class="node-title">Report</div>
             <div class="node-sub">Structuring</div>
+            <div class="node-timer"></div>
           </div>
         </div>
       </div>
@@ -812,55 +846,140 @@ function setLineState(lineId, status) {
   if (el) { el.className = 'pipe-line ' + status; }
 }
 
+const _nodeTimers = {};
+const NODE_TIMEOUT_MS = 120000;
+
 function resetPipeline() {
   ['enrichment','search','pubmed','extraction','llm','done'].forEach(n => {
     const el = document.getElementById('node-' + n);
-    if (el) el.dataset.status = 'pending';
+    if (el) {
+      el.dataset.status = 'pending';
+      const timer = el.querySelector('.node-timer');
+      if (timer) timer.textContent = '';
+    }
+    if (_nodeTimers[n]) { clearInterval(_nodeTimers[n].interval); delete _nodeTimers[n]; }
   });
   document.querySelectorAll('.pipe-line').forEach(l => l.className = 'pipe-line pending');
 }
 
+function startNodeTimer(name) {
+  if (_nodeTimers[name]) return;
+  const el = document.getElementById('node-' + name);
+  const timerEl = el ? el.querySelector('.node-timer') : null;
+  if (!timerEl) return;
+  const start = Date.now();
+  timerEl.textContent = '0.0s';
+  _nodeTimers[name] = {
+    start,
+    interval: setInterval(() => {
+      const elapsed = Date.now() - start;
+      timerEl.textContent = (elapsed / 1000).toFixed(1) + 's';
+      if (elapsed >= NODE_TIMEOUT_MS && el.dataset.status === 'active') {
+        el.dataset.status = 'timeout';
+        timerEl.textContent = 'timeout';
+        clearInterval(_nodeTimers[name].interval);
+      }
+    }, 100),
+  };
+}
+
+function stopNodeTimer(name) {
+  if (!_nodeTimers[name]) return;
+  clearInterval(_nodeTimers[name].interval);
+  const elapsed = Date.now() - _nodeTimers[name].start;
+  const el = document.getElementById('node-' + name);
+  const timerEl = el ? el.querySelector('.node-timer') : null;
+  if (timerEl) timerEl.textContent = (elapsed / 1000).toFixed(1) + 's';
+  delete _nodeTimers[name];
+}
+
+function failNodeTimer(name) {
+  if (_nodeTimers[name]) clearInterval(_nodeTimers[name].interval);
+  const el = document.getElementById('node-' + name);
+  if (el) el.dataset.status = 'failed';
+  const timerEl = el ? el.querySelector('.node-timer') : null;
+  if (timerEl && _nodeTimers[name]) {
+    const elapsed = Date.now() - _nodeTimers[name].start;
+    timerEl.textContent = (elapsed / 1000).toFixed(1) + 's — failed';
+  } else if (timerEl) {
+    timerEl.textContent = 'failed';
+  }
+  if (_nodeTimers[name]) delete _nodeTimers[name];
+}
+
 function updatePipelineFromEvent(step, message) {
   document.getElementById('loadingMsg').textContent = message;
+  const isFail = /fail|error/i.test(message);
 
   if (step === 'enrichment' && message.includes('Running')) {
     setPipelineState('enrichment', 'active');
+    startNodeTimer('enrichment');
   } else if (step === 'enrichment' && message.includes('complete')) {
     setPipelineState('enrichment', 'done');
+    stopNodeTimer('enrichment');
     setLineState('line-1-2a', 'active');
     setLineState('line-1-2b', 'active');
+  } else if (step === 'enrichment' && isFail) {
+    failNodeTimer('enrichment');
   } else if (step === 'search' && (message.includes('Searching') || message.includes('Skipping web'))) {
-    setPipelineState('search', message.includes('Skipping') ? 'done' : 'active');
+    if (message.includes('Skipping')) {
+      setPipelineState('search', 'done');
+    } else {
+      setPipelineState('search', 'active');
+      startNodeTimer('search');
+    }
     setPipelineState('pubmed', 'active');
+    startNodeTimer('pubmed');
   } else if (step === 'search' && message.includes('Found')) {
     setPipelineState('search', 'done');
+    stopNodeTimer('search');
+  } else if (step === 'search' && isFail) {
+    failNodeTimer('search');
   } else if (step === 'pubmed' && message.includes('Fetching')) {
     setPipelineState('pubmed', 'active');
+    startNodeTimer('pubmed');
   } else if (step === 'pubmed' && (message.includes('Fetched') || message.includes('Skipping'))) {
     setPipelineState('pubmed', 'done');
+    stopNodeTimer('pubmed');
+  } else if (step === 'pubmed' && isFail) {
+    failNodeTimer('pubmed');
   } else if (step === 'search' && message.includes('All searches')) {
     setPipelineState('search', 'done');
     setPipelineState('pubmed', 'done');
+    stopNodeTimer('search');
+    stopNodeTimer('pubmed');
     setLineState('line-1-2a', 'done');
     setLineState('line-1-2b', 'done');
     setLineState('line-2a-3', 'active');
     setLineState('line-2b-3', 'active');
   } else if (step === 'extraction' && message.includes('Extracting')) {
     setPipelineState('extraction', 'active');
+    startNodeTimer('extraction');
     setLineState('line-2a-3', 'done');
     setLineState('line-2b-3', 'done');
   } else if (step === 'extraction' && (message.includes('Extracted') || message.includes('Skipping'))) {
     setPipelineState('extraction', 'done');
+    stopNodeTimer('extraction');
+    setLineState('line-3-4', 'active');
+  } else if (step === 'extraction' && isFail) {
+    failNodeTimer('extraction');
     setLineState('line-3-4', 'active');
   } else if (step === 'llm' && message.includes('Generating')) {
     setPipelineState('extraction', 'done');
+    stopNodeTimer('extraction');
     setLineState('line-3-4', 'done');
     setPipelineState('llm', 'active');
+    startNodeTimer('llm');
   } else if (step === 'llm' && (message.includes('generated') || message.includes('Skipping'))) {
     setPipelineState('llm', 'done');
+    stopNodeTimer('llm');
+    setLineState('line-4-5', 'active');
+  } else if (step === 'llm' && isFail) {
+    failNodeTimer('llm');
     setLineState('line-4-5', 'active');
   } else if (step === 'done') {
     setPipelineState('done', 'done');
+    stopNodeTimer('done');
     setLineState('line-4-5', 'done');
   }
 }
@@ -1015,10 +1134,8 @@ function renderResult(data) {
   document.getElementById('tabPanels').innerHTML = panelsHtml;
   lucide.createIcons();
 
-  // Render D3 network graph
-  if (graphData.nodes.length > 0) {
-    renderNetworkGraph(graphData);
-  }
+  // Store graph data for lazy rendering when Network tab is shown
+  window._graphData = graphData;
 }
 
 function renderNetworkGraph(graphData) {
@@ -1031,7 +1148,15 @@ function renderNetworkGraph(graphData) {
 
   const svg = d3.select(container).append('svg')
     .attr('width', width).attr('height', height)
-    .attr('viewBox', [0, 0, width, height]);
+    .attr('viewBox', [0, 0, width, height])
+    .style('cursor', 'grab');
+
+  // Zoom & pan
+  const g = svg.append('g');
+  const zoom = d3.zoom()
+    .scaleExtent([0.3, 5])
+    .on('zoom', (event) => { g.attr('transform', event.transform); });
+  svg.call(zoom);
 
   // Defs for arrow markers
   const defs = svg.append('defs');
@@ -1065,7 +1190,7 @@ function renderNetworkGraph(graphData) {
     .force('collision', d3.forceCollide().radius(d => (typeRadius[d.type] || 5) + 6));
 
   // Edges
-  const link = svg.append('g')
+  const link = g.append('g')
     .selectAll('line').data(edges).join('line')
     .attr('stroke', d => d.type === 'relation' ? '#98a2b3' : '#e4e7ec')
     .attr('stroke-width', d => d.type === 'relation' ? 1.2 : 0.8)
@@ -1073,7 +1198,7 @@ function renderNetworkGraph(graphData) {
     .attr('marker-end', d => d.type === 'relation' ? 'url(#arrow-relation)' : '');
 
   // Nodes
-  const node = svg.append('g')
+  const node = g.append('g')
     .selectAll('g').data(nodes).join('g')
     .call(d3.drag()
       .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
@@ -1175,6 +1300,13 @@ function switchSubTab(parentKey, subKey) {
 function switchTab(key) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + key));
+  // Lazy-render D3 graph when Network tab is first shown
+  if (key === 'network' && window._graphData && window._graphData.nodes.length > 0) {
+    const container = document.getElementById('networkGraph');
+    if (container && !container.querySelector('svg')) {
+      setTimeout(() => renderNetworkGraph(window._graphData), 50);
+    }
+  }
 }
 
 const COL_DEFS = [
