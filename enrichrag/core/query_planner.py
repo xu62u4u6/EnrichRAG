@@ -1,11 +1,12 @@
 """Query planner: transforms enrichment results into structured search intents."""
 
+import json
 import re
 from collections import Counter, defaultdict
 from typing import Dict, List, Literal, Optional
 
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from enrichrag.logging import logger
 
@@ -23,13 +24,14 @@ class SearchIntent(BaseModel):
 
 class QueryPlan(BaseModel):
     intents: List[SearchIntent]
-    top_genes: List[str]
-    gene_clusters: Dict[str, List[str]]
-    summary: str
+    top_genes: List[str] = Field(default_factory=list)
+    gene_clusters: Dict[str, List[str]] = Field(default_factory=dict)
+    summary: str = ""
 
 
-# ── Term classification keywords ─────────────────────────────────────────────
+# ── Term classification ──────────────────────────────────────────────────────
 
+# Fallback keyword matching (used when no LLM available)
 _CATEGORY_KEYWORDS: Dict[str, List[str]] = {
     "DNA damage response": [
         "repair", "damage", "checkpoint", "replication", "recombination",
@@ -51,6 +53,65 @@ _CATEGORY_KEYWORDS: Dict[str, List[str]] = {
         "cyclin", "cdk", "spindle",
     ],
 }
+
+
+def _classify_terms_with_llm(
+    terms: List[str], *, api_key: str, model: str = "gpt-4o"
+) -> Dict[str, str]:
+    """Classify enrichment terms into biological categories using one LLM call.
+
+    Returns a dict mapping each term to its category name.
+    """
+    from langchain_openai import ChatOpenAI
+
+    cleaned = [_clean_term(t) for t in terms]
+    unique_terms = list(dict.fromkeys(cleaned))  # dedupe, preserve order
+
+    prompt = (
+        "You are a bioinformatics expert. Classify each biological term into a "
+        "short, general biological category (2-4 words). Group similar processes together.\n\n"
+        "Examples of good category names:\n"
+        "- DNA damage response\n"
+        "- cell cycle regulation\n"
+        "- apoptosis and cell death\n"
+        "- immune signaling\n"
+        "- chromatin remodeling\n"
+        "- transcriptional regulation\n"
+        "- protein ubiquitination\n"
+        "- metabolic regulation\n"
+        "- autophagy\n\n"
+        "Terms to classify:\n"
+    )
+    for i, t in enumerate(unique_terms[:40], 1):
+        prompt += f"{i}. {t}\n"
+
+    prompt += (
+        "\nReturn ONLY a JSON object mapping each term to its category. "
+        'Example: {"DNA repair": "DNA damage response", "apoptotic process": "apoptosis and cell death"}'
+    )
+
+    try:
+        llm = ChatOpenAI(
+            model=model, temperature=0, api_key=api_key, max_tokens=1000,
+        )
+        response = llm.invoke(prompt)
+        text = response.content.strip()
+        # Extract JSON from response (handle markdown code blocks)
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+        mapping = json.loads(text)
+        logger.info(f"LLM classified {len(mapping)} terms into {len(set(mapping.values()))} categories")
+        # Map back to original term names
+        result = {}
+        for orig, clean in zip(terms, [_clean_term(t) for t in terms]):
+            result[orig] = mapping.get(clean, clean)
+        return result
+    except Exception as e:
+        logger.warning(f"LLM term classification failed, using keyword fallback: {e}")
+        return {}
 
 # ── Disease → MeSH mapping ───────────────────────────────────────────────────
 
@@ -120,15 +181,20 @@ class QueryPlanner:
         enrichment_results: Dict[str, pd.DataFrame],
         genes: List[str],
         disease: str,
+        api_key: Optional[str] = None,
+        model: str = "gpt-4o",
     ) -> QueryPlan:
-        """Rule-based query planning from enrichment results.
+        """Query planning from enrichment results.
+
+        Uses LLM for term classification when api_key is provided,
+        falls back to keyword matching otherwise.
 
         Returns a QueryPlan with up to 5 SearchIntents.
         """
-        # Step 1: Gene clustering — group genes by shared enrichment terms
+        # Step 1: Collect all terms and genes
         gene_counter: Counter = Counter()
-        category_genes: Dict[str, Counter] = defaultdict(Counter)
         all_terms: List[str] = []
+        term_genes: Dict[str, List[str]] = {}  # term → genes list
 
         for df in enrichment_results.values():
             if df.empty or "genes" not in df.columns or "term" not in df.columns:
@@ -136,13 +202,30 @@ class QueryPlanner:
             for _, row in df.iterrows():
                 term = str(row["term"])
                 all_terms.append(term)
-                category = _classify_term(term)
+                row_genes = []
                 genes_str = str(row.get("genes", ""))
                 for g in genes_str.replace(",", ";").split(";"):
                     g = g.strip().upper()
                     if g:
                         gene_counter[g] += 1
-                        category_genes[category][g] += 1
+                        row_genes.append(g)
+                term_genes[term] = row_genes
+
+        # Step 2: Classify terms (LLM or keyword fallback)
+        llm_mapping: Dict[str, str] = {}
+        if api_key and all_terms:
+            llm_mapping = _classify_terms_with_llm(
+                all_terms, api_key=api_key, model=model,
+            )
+
+        category_genes: Dict[str, Counter] = defaultdict(Counter)
+        for term in all_terms:
+            if llm_mapping and term in llm_mapping:
+                category = llm_mapping[term]
+            else:
+                category = _classify_term(term)
+            for g in term_genes.get(term, []):
+                category_genes[category][g] += 1
 
         top_genes = [g for g, _ in gene_counter.most_common(5)] or genes[:5]
 

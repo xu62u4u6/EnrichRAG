@@ -65,7 +65,11 @@ def run_pipeline(
     # 1.5. Query Planning
     _progress("planning", "Generating search strategy from enrichment results...")
     planner = QueryPlanner()
-    query_plan = planner.plan(enricher.filtered_results, genes, disease)
+    query_plan = planner.plan(
+        enricher.filtered_results, genes, disease,
+        api_key=settings.openai_api_key or None,
+        model=settings.llm_model,
+    )
     _progress("planning", query_plan.summary)
 
     # Optional LLM refinement
@@ -146,16 +150,12 @@ def run_pipeline(
             inputs = {
                 "context": f"Disease context: {disease}",
                 "genes": ", ".join(genes),
-                "go_table": go_table if go_table else "No significant enrichment results",
-                "kegg_table": kegg_table if kegg_table else "No significant enrichment results",
-                "web_search": _truncate(web_context, 3000) if web_context else "No web search results available.",
-                "pubmed": _truncate(pubmed_context, 6000) if pubmed_context else "No PubMed results available.",
-                "relations": relations_text,
+                "go_table": _truncate(go_table, 4000) if go_table else "No significant enrichment results",
+                "kegg_table": _truncate(kegg_table, 2000) if kegg_table else "No significant enrichment results",
+                "web_search": _truncate(web_context, 2000) if web_context else "No web search results available.",
+                "pubmed": _truncate(pubmed_context, 4000) if pubmed_context else "No PubMed results available.",
+                "relations": _truncate(relations_text, 3000),
             }
-
-            # Log each field size to identify what's too large
-            for k, v in inputs.items():
-                logger.info(f"LLM input [{k}]: {len(v)} chars (~{len(v)//4} tokens)")
 
             insight = chain.invoke(inputs)
             _progress("llm", "LLM report generated.")
