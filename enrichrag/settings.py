@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     server_host: str = "127.0.0.1"
     server_port: int = 9001
     url_prefix: str = ""
+    query_planning_llm_refine: bool = True
 
 
 settings = Settings()

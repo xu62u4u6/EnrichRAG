@@ -12,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from enrichrag.core.enricher import GeneEnricher
 from enrichrag.core.graph_builder import build_graph_json
 from enrichrag.core.pubmed import PubMedFetcher
+from enrichrag.core.query_planner import QueryPlan, QueryPlanner
 from enrichrag.core.relation_extractor import RelationExtractor
 from enrichrag.core.web_search import WebSearcher
 from enrichrag.logging import logger
@@ -37,29 +38,54 @@ def run_pipeline(
         Dict with input_genes, disease_context, enrichment_results, llm_insight.
     """
 
-    def _progress(step: str, message: str) -> None:
+    def _progress(step: str, message: str, **kwargs) -> None:
         logger.info(message)
         if on_progress:
-            on_progress(step, message)
+            on_progress(step, message, **kwargs)
 
     # 1. Enrichment
     _progress("enrichment", f"Running enrichment analysis for {len(genes)} genes...")
     enricher = GeneEnricher(gene_list=genes)
     enricher.run_enrichment()
     enricher.filter(pval_threshold=pval_threshold)
-    _progress("enrichment", "Enrichment analysis complete.")
+    _progress("enrichment", "Enrichment analysis complete.", data={
+        "enrichment_results": {
+            label: df.to_dict(orient="records")
+            for label, df in enricher.filtered_results.items()
+        },
+    })
+
+    # 1.5. Query Planning
+    _progress("planning", "Generating search strategy from enrichment results...")
+    planner = QueryPlanner()
+    query_plan = planner.plan(enricher.filtered_results, genes, disease)
+    _progress("planning", query_plan.summary)
+
+    # Optional LLM refinement
+    if settings.openai_api_key and settings.query_planning_llm_refine:
+        all_terms = []
+        for df in enricher.filtered_results.values():
+            if not df.empty and "term" in df.columns:
+                all_terms.extend(df["term"].tolist())
+        query_plan = planner.refine_with_llm(
+            query_plan, all_terms, disease,
+            api_key=settings.openai_api_key,
+            model=settings.llm_model,
+        )
 
     # 2. Parallel Search (Web + PubMed)
     _progress("search", "Searching web and PubMed in parallel...")
     web_context, web_sources, pubmed_context, pubmed_sources, pubmed_df = _parallel_search(
         genes, disease, enricher.filtered_results, _progress,
+        query_plan=query_plan,
     )
 
     # 3. Relation Extraction from PubMed abstracts
     relations_df = pd.DataFrame()
     entities_df = pd.DataFrame()
     if settings.openai_api_key and pubmed_df is not None and not pubmed_df.empty:
-        _progress("extraction", "Extracting biomedical relations from abstracts...")
+        total_abs = len(pubmed_df)
+        _progress("extraction", f"Extracting relations from {total_abs} abstracts...")
         try:
             llm = ChatOpenAI(
                 model=settings.llm_model,
@@ -67,7 +93,12 @@ def run_pipeline(
                 api_key=settings.openai_api_key,
             )
             extractor = RelationExtractor(llm=llm)
-            relations_df = extractor.extract(pubmed_df)
+            relations_df = extractor.extract(
+                pubmed_df,
+                on_progress=lambda i, n: _progress(
+                    "extraction", f"Extracting abstract {i}/{n}..."
+                ),
+            )
             entities_df = extractor.get_entities()
             _progress("extraction", f"Extracted {len(relations_df)} relations, {len(entities_df)} entities.")
         except Exception as e:
@@ -138,6 +169,11 @@ def run_pipeline(
         },
         "gene_relations": relations_df.to_dict(orient="records") if not relations_df.empty else [],
         "graph": graph_json,
+        "query_plan": {
+            "summary": query_plan.summary,
+            "intents": [i.model_dump() for i in query_plan.intents],
+            "top_genes": query_plan.top_genes,
+        },
     }
 
     _progress("done", "Pipeline complete.")
@@ -149,6 +185,7 @@ def _parallel_search(
     disease: str,
     enrichment_results: Dict,
     _progress: Callable,
+    query_plan: Optional[QueryPlan] = None,
 ) -> Tuple[str, list, str, list, Optional[pd.DataFrame]]:
     """Run web search and PubMed fetch in parallel threads."""
 
@@ -165,11 +202,14 @@ def _parallel_search(
         _progress("search", "Searching for related literature...")
         try:
             searcher = WebSearcher(max_results=3, api_key=settings.tavily_api_key)
-            searcher.search_smart(
-                gene_list=genes,
-                disease=disease,
-                enrichment_results=enrichment_results,
-            )
+            if query_plan and query_plan.intents:
+                searcher.search_from_plan(query_plan.intents)
+            else:
+                searcher.search_smart(
+                    gene_list=genes,
+                    disease=disease,
+                    enrichment_results=enrichment_results,
+                )
             _progress("search", f"Found {len(searcher.results)} unique web results.")
             return searcher.to_context(), searcher.to_sources()
         except Exception as e:
@@ -184,7 +224,10 @@ def _parallel_search(
         _progress("pubmed", "Fetching PubMed abstracts...")
         try:
             fetcher = PubMedFetcher(email=settings.pubmed_email, max_results=10)
-            fetcher.search(gene_list=genes, mode="batch", disease=disease)
+            if query_plan and query_plan.intents:
+                fetcher.search_from_plan(query_plan.intents)
+            else:
+                fetcher.search(gene_list=genes, mode="batch", disease=disease)
             df = fetcher.to_dataframe()
             if df.empty:
                 _progress("pubmed", "No PubMed abstracts found.")
@@ -218,7 +261,12 @@ def _parallel_search(
             else:
                 pubmed_context, pubmed_sources, pubmed_df = future.result()
 
-    _progress("search", "All searches complete.")
+    _progress("search", "All searches complete.", data={
+        "sources": {
+            "web": web_sources,
+            "pubmed": pubmed_sources,
+        },
+    })
     return web_context, web_sources, pubmed_context, pubmed_sources, pubmed_df
 
 

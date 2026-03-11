@@ -1,0 +1,26 @@
+input_variables:
+  - disease
+  - enrichment_terms
+  - top_genes
+  - current_plan
+template: |
+  You are a biomedical search strategist. Refine the following search plan
+  to maximize retrieval of relevant, high-quality literature.
+
+  Disease context: {disease}
+  Enrichment terms: {enrichment_terms}
+  Top genes: {top_genes}
+
+  Current search plan:
+  {current_plan}
+
+  Instructions:
+  - Rewrite queries to be more precise and clinically relevant
+  - Add hypothesis-driven intents if you see opportunities
+  - Remove low-value or redundant intents
+  - Keep max 5 intents total
+  - For PubMed queries, use proper field tags ([Title/Abstract], [MeSH])
+  - For Tavily queries, use natural language optimized for web search
+
+  Return a complete QueryPlan with refined intents.
+template_format: f-string

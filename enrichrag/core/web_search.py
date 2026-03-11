@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 from collections import Counter
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import pandas as pd
 from langchain_tavily import TavilySearch
 
 from enrichrag.logging import logger
+
+if TYPE_CHECKING:
+    from enrichrag.core.query_planner import SearchIntent
 
 
 class WebSearcher:
@@ -126,6 +131,27 @@ class WebSearcher:
         except Exception as e:
             logger.error(f"Search failed for query [{query[:60]}]: {e}")
             return []
+
+    def search_from_plan(self, intents: List[SearchIntent]) -> "WebSearcher":
+        """Search using structured intents from QueryPlanner.
+
+        Uses each intent's tavily_query, deduplicates results by URL.
+        """
+        seen_urls: set = set()
+        all_results: List[dict] = []
+
+        for intent in intents:
+            query = intent.tavily_query
+            hits = self._invoke_query(query)
+            for hit in hits:
+                url = hit.get("url", "")
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    all_results.append(hit)
+
+        self.results = all_results
+        logger.info(f"Plan-based search total: {len(self.results)} unique results")
+        return self
 
     def to_dataframe(self) -> pd.DataFrame:
         """Convert search results to a DataFrame."""

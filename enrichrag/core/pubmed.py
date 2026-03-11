@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 import time
 from itertools import combinations
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import pandas as pd
 from Bio import Entrez, Medline
 
 from enrichrag.logging import logger
+
+if TYPE_CHECKING:
+    from enrichrag.core.query_planner import SearchIntent
 
 
 class PubMedFetcher:
@@ -63,6 +68,26 @@ class PubMedFetcher:
                 }
             )
         return pd.DataFrame(rows)
+
+    def search_from_plan(self, intents: List[SearchIntent]) -> "PubMedFetcher":
+        """Search PubMed using structured intents from QueryPlanner.
+
+        Uses each intent's pubmed_query. Deduplicates PMIDs across intents
+        and fetches all at once.
+        """
+        all_pmids: set[str] = set()
+        for intent in intents:
+            pmids = self._esearch(intent.pubmed_query)
+            all_pmids.update(pmids)
+            logger.info(
+                f"PubMed plan query [{intent.category}]: {len(pmids)} PMIDs"
+            )
+
+        if all_pmids:
+            self.records = self._efetch(list(all_pmids))
+
+        logger.info(f"Plan-based PubMed fetch: {len(self.records)} abstracts")
+        return self
 
     # ── private methods ──
 

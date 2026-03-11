@@ -38,8 +38,11 @@ async def analyze_stream(
 
     progress_queue: Queue = Queue()
 
-    def on_progress(step: str, message: str):
-        progress_queue.put({"event": step, "message": message})
+    def on_progress(step, message, **kwargs):
+        msg = {"event": step, "message": message}
+        if kwargs.get("data") is not None:
+            msg["data"] = kwargs["data"]
+        progress_queue.put(msg)
 
     async def event_generator():
         loop = asyncio.get_event_loop()
