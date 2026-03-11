@@ -27,6 +27,46 @@ def _truncate(text: str, max_chars: int) -> str:
     return text[:max_chars] + "\n\n... [truncated for token limit]"
 
 
+def _compact_relations(df: pd.DataFrame, max_rows: int = 30) -> str:
+    """Convert relations DataFrame to compact text for LLM input.
+
+    Produces: source -[relation]-> target (PMID:xxx)
+    """
+    if df.empty:
+        return "No extracted relations available."
+    lines = []
+    for _, row in df.head(max_rows).iterrows():
+        pmid = row.get("pmid", "")
+        lines.append(
+            f"- {row['source']} -[{row['relation']}]-> {row['target']} ({pmid})"
+        )
+    if len(df) > max_rows:
+        lines.append(f"... and {len(df) - max_rows} more relations")
+    return "\n".join(lines)
+
+
+def _compact_enrichment(df: pd.DataFrame, max_rows: int = 15) -> str:
+    """Convert enrichment DataFrame to a compact text format for LLM input.
+
+    Instead of full markdown table, produces one line per term:
+      - term_name (p=1.2e-06, 5/80): GENE1, GENE2, GENE3
+    """
+    if df.empty:
+        return "No significant enrichment results"
+    lines = []
+    sort_col = "p_adjusted" if "p_adjusted" in df.columns else "p_value"
+    sorted_df = df.sort_values(sort_col, ascending=True).head(max_rows)
+    for _, row in sorted_df.iterrows():
+        term = row.get("term", "")
+        p = row.get("p_adjusted", row.get("p_value", 1))
+        overlap = row.get("overlap", "")
+        genes_str = str(row.get("genes", "")).replace(";", ", ")
+        lines.append(f"- {term} (p={p:.1e}, {overlap}): {genes_str}")
+    if len(df) > max_rows:
+        lines.append(f"... and {len(df) - max_rows} more terms")
+    return "\n".join(lines)
+
+
 def run_pipeline(
     genes: List[str],
     disease: str = "cancer",
@@ -136,13 +176,11 @@ def run_pipeline(
             )
             chain = generator.prompt_template | llm | StrOutputParser()
 
-            go_table = enricher.filtered_results.get("GO", pd.DataFrame()).to_markdown(index=False)
-            kegg_table = enricher.filtered_results.get("KEGG", pd.DataFrame()).to_markdown(
-                index=False
-            )
+            go_df = enricher.filtered_results.get("GO", pd.DataFrame())
+            kegg_df = enricher.filtered_results.get("KEGG", pd.DataFrame())
 
             relations_text = (
-                relations_df.to_markdown(index=False)
+                _compact_relations(relations_df)
                 if not relations_df.empty
                 else "No extracted relations available."
             )
@@ -150,11 +188,11 @@ def run_pipeline(
             inputs = {
                 "context": f"Disease context: {disease}",
                 "genes": ", ".join(genes),
-                "go_table": _truncate(go_table, 4000) if go_table else "No significant enrichment results",
-                "kegg_table": _truncate(kegg_table, 2000) if kegg_table else "No significant enrichment results",
+                "go_table": _compact_enrichment(go_df),
+                "kegg_table": _compact_enrichment(kegg_df),
                 "web_search": _truncate(web_context, 2000) if web_context else "No web search results available.",
                 "pubmed": _truncate(pubmed_context, 4000) if pubmed_context else "No PubMed results available.",
-                "relations": _truncate(relations_text, 3000),
+                "relations": relations_text,
             }
 
             insight = chain.invoke(inputs)
