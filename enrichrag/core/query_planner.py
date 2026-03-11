@@ -26,6 +26,7 @@ class QueryPlan(BaseModel):
     intents: List[SearchIntent]
     top_genes: List[str] = Field(default_factory=list)
     gene_clusters: Dict[str, List[str]] = Field(default_factory=dict)
+    term_categories: Dict[str, str] = Field(default_factory=dict)
     summary: str = ""
 
 
@@ -219,11 +220,13 @@ class QueryPlanner:
             )
 
         category_genes: Dict[str, Counter] = defaultdict(Counter)
+        term_categories: Dict[str, str] = {}
         for term in all_terms:
             if llm_mapping and term in llm_mapping:
                 category = llm_mapping[term]
             else:
                 category = _classify_term(term)
+            term_categories[term] = category
             for g in term_genes.get(term, []):
                 category_genes[category][g] += 1
 
@@ -325,6 +328,7 @@ class QueryPlanner:
             intents=intents,
             top_genes=top_genes,
             gene_clusters=gene_clusters,
+            term_categories=term_categories,
             summary=summary,
         )
 

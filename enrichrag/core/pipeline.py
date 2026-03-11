@@ -45,25 +45,70 @@ def _compact_relations(df: pd.DataFrame, max_rows: int = 30) -> str:
     return "\n".join(lines)
 
 
-def _compact_enrichment(df: pd.DataFrame, max_rows: int = 15) -> str:
-    """Convert enrichment DataFrame to a compact text format for LLM input.
+def _compact_enrichment(
+    df: pd.DataFrame,
+    term_categories: Optional[Dict[str, str]] = None,
+    top_terms_per_category: int = 2,
+) -> str:
+    """Convert enrichment DataFrame to grouped compact format for LLM input.
 
-    Instead of full markdown table, produces one line per term:
-      - term_name (p=1.2e-06, 5/80): GENE1, GENE2, GENE3
+    Groups terms by category (from QueryPlanner), shows top N per group:
+
+        DNA damage response (6 terms, top p=5.5e-06):
+          - DNA repair (8/150, p=5.5e-06): BRCA1, BRCA2, RAD51
+          - double-strand break repair (5/80, p=8.2e-05): BRCA1, BRCA2
+          ... and 4 more terms
+          Key genes: BRCA1(6), ATM(5), RAD51(4)
     """
     if df.empty:
         return "No significant enrichment results"
-    lines = []
+
     sort_col = "p_adjusted" if "p_adjusted" in df.columns else "p_value"
-    sorted_df = df.sort_values(sort_col, ascending=True).head(max_rows)
+    sorted_df = df.sort_values(sort_col, ascending=True)
+
+    # Group by category
+    groups: Dict[str, list] = {}
     for _, row in sorted_df.iterrows():
-        term = row.get("term", "")
-        p = row.get("p_adjusted", row.get("p_value", 1))
-        overlap = row.get("overlap", "")
-        genes_str = str(row.get("genes", "")).replace(";", ", ")
-        lines.append(f"- {term} (p={p:.1e}, {overlap}): {genes_str}")
-    if len(df) > max_rows:
-        lines.append(f"... and {len(df) - max_rows} more terms")
+        term = str(row.get("term", ""))
+        if term_categories and term in term_categories:
+            cat = term_categories[term]
+        else:
+            cat = term  # ungrouped fallback
+        groups.setdefault(cat, []).append(row)
+
+    # Sort categories by best p-value
+    cat_order = sorted(
+        groups.items(),
+        key=lambda x: x[1][0].get(sort_col, 1),
+    )
+
+    lines = []
+    for cat, rows in cat_order:
+        best_p = rows[0].get(sort_col, rows[0].get("p_value", 1))
+        lines.append(f"{cat} ({len(rows)} terms, top p={best_p:.1e}):")
+
+        # Show top N terms
+        for row in rows[:top_terms_per_category]:
+            term = row.get("term", "")
+            p = row.get(sort_col, row.get("p_value", 1))
+            overlap = row.get("overlap", "")
+            genes_str = str(row.get("genes", "")).replace(";", ", ")
+            lines.append(f"  - {term} (p={p:.1e}, {overlap}): {genes_str}")
+        if len(rows) > top_terms_per_category:
+            lines.append(f"  ... and {len(rows) - top_terms_per_category} more terms")
+
+        # Key genes with frequency
+        gene_freq: Dict[str, int] = {}
+        for row in rows:
+            for g in str(row.get("genes", "")).replace(",", ";").split(";"):
+                g = g.strip()
+                if g:
+                    gene_freq[g] = gene_freq.get(g, 0) + 1
+        top_g = sorted(gene_freq.items(), key=lambda x: -x[1])[:5]
+        if top_g:
+            gene_parts = ", ".join(f"{g}({c})" for g, c in top_g)
+            lines.append(f"  Key genes: {gene_parts}")
+
     return "\n".join(lines)
 
 
@@ -188,8 +233,8 @@ def run_pipeline(
             inputs = {
                 "context": f"Disease context: {disease}",
                 "genes": ", ".join(genes),
-                "go_table": _compact_enrichment(go_df),
-                "kegg_table": _compact_enrichment(kegg_df),
+                "go_table": _compact_enrichment(go_df, query_plan.term_categories),
+                "kegg_table": _compact_enrichment(kegg_df, query_plan.term_categories),
                 "web_search": _truncate(web_context, 2000) if web_context else "No web search results available.",
                 "pubmed": _truncate(pubmed_context, 4000) if pubmed_context else "No PubMed results available.",
                 "relations": relations_text,
