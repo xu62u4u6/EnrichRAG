@@ -137,6 +137,12 @@ def run_pipeline(
                 index=False
             )
 
+            relations_text = (
+                relations_df.to_markdown(index=False)
+                if not relations_df.empty
+                else "No extracted relations available."
+            )
+
             inputs = {
                 "context": f"Disease context: {disease}",
                 "genes": ", ".join(genes),
@@ -144,8 +150,13 @@ def run_pipeline(
                 "kegg_table": kegg_table if kegg_table else "No significant enrichment results",
                 "web_search": _truncate(web_context, 3000) if web_context else "No web search results available.",
                 "pubmed": _truncate(pubmed_context, 6000) if pubmed_context else "No PubMed results available.",
-                "relations": relations_df.to_markdown(index=False) if not relations_df.empty else "No extracted relations available.",
+                "relations": relations_text,
             }
+
+            # Log each field size to identify what's too large
+            for k, v in inputs.items():
+                logger.info(f"LLM input [{k}]: {len(v)} chars (~{len(v)//4} tokens)")
+
             insight = chain.invoke(inputs)
             _progress("llm", "LLM report generated.")
         except Exception as e:
