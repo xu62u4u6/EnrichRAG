@@ -83,8 +83,10 @@ class PubMedFetcher:
                 f"PubMed plan query [{intent.category}]: {len(pmids)} PMIDs"
             )
 
+        # Cap total PMIDs to max_results to avoid oversized LLM input
+        pmid_list = list(all_pmids)[:self.max_results]
         if all_pmids:
-            self.records = self._efetch(list(all_pmids))
+            self.records = self._efetch(pmid_list)
 
         logger.info(f"Plan-based PubMed fetch: {len(self.records)} abstracts")
         return self

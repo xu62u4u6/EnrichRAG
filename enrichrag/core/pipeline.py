@@ -20,6 +20,13 @@ from enrichrag.prompts.generator import PromptGenerator
 from enrichrag.settings import settings
 
 
+def _truncate(text: str, max_chars: int) -> str:
+    """Truncate text to max_chars, appending a note if truncated."""
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "\n\n... [truncated for token limit]"
+
+
 def run_pipeline(
     genes: List[str],
     disease: str = "cancer",
@@ -135,8 +142,8 @@ def run_pipeline(
                 "genes": ", ".join(genes),
                 "go_table": go_table if go_table else "No significant enrichment results",
                 "kegg_table": kegg_table if kegg_table else "No significant enrichment results",
-                "web_search": web_context if web_context else "No web search results available.",
-                "pubmed": pubmed_context if pubmed_context else "No PubMed results available.",
+                "web_search": _truncate(web_context, 3000) if web_context else "No web search results available.",
+                "pubmed": _truncate(pubmed_context, 6000) if pubmed_context else "No PubMed results available.",
                 "relations": relations_df.to_markdown(index=False) if not relations_df.empty else "No extracted relations available.",
             }
             insight = chain.invoke(inputs)
@@ -223,7 +230,7 @@ def _parallel_search(
             return "", [], None
         _progress("pubmed", "Fetching PubMed abstracts...")
         try:
-            fetcher = PubMedFetcher(email=settings.pubmed_email, max_results=10)
+            fetcher = PubMedFetcher(email=settings.pubmed_email, max_results=5)
             if query_plan and query_plan.intents:
                 fetcher.search_from_plan(query_plan.intents)
             else:
