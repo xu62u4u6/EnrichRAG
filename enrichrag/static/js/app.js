@@ -5,6 +5,8 @@ const API_PREFIX = window.__API_PREFIX || '';
 const MAX_HISTORY = 20;
 let currentResult = null;
 let currentView = 'input';
+let _eventSource = null;
+let _pipelineRunning = false;
 
 document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
@@ -14,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ---- Navigation ---- */
 
 function switchView(name) {
-  if (name === 'results' && !currentResult) return;
+  if (name === 'results' && !currentResult && !_pipelineRunning) return;
   currentView = name;
   document.querySelectorAll('.view, .loading-view').forEach(v => v.classList.remove('active'));
   const el = document.getElementById('view-' + name);
@@ -22,7 +24,6 @@ function switchView(name) {
   document.querySelectorAll('.nav-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.view === name);
   });
-  // Close mobile nav
   const nav = document.querySelector('.sidebar nav');
   if (nav) nav.classList.remove('open');
   lucide.createIcons();
@@ -46,6 +47,8 @@ function setPipelineState(nodeId, status) {
       circle.innerHTML = '<i data-lucide="check" style="width:18px;height:18px"></i>';
     } else if (status === 'active') {
       circle.innerHTML = '<i data-lucide="loader-2" style="width:18px;height:18px"></i>';
+    } else if (status === 'cancelled') {
+      circle.innerHTML = '<i data-lucide="minus" style="width:18px;height:18px"></i>';
     }
     lucide.createIcons();
   }
@@ -57,20 +60,33 @@ function setLineState(lineId, status) {
 }
 
 const _nodeTimers = {};
-const NODE_TIMEOUT_MS = 120000;
+const NODE_TIMEOUT_MS = 600000;
 
 function resetPipeline() {
-  ['enrichment','search','pubmed','extraction','llm','done'].forEach(n => {
+  ['enrichment','planning','search','pubmed','extraction','llm','done'].forEach(n => {
     const el = document.getElementById('node-' + n);
     if (el) {
       el.dataset.status = 'pending';
       const timer = el.querySelector('.node-timer');
       if (timer) timer.textContent = '';
+      // Reset subtitle to default
+      const sub = el.querySelector('.node-sub');
+      if (sub) sub.textContent = _defaultSubs[n] || '';
     }
     if (_nodeTimers[n]) { clearInterval(_nodeTimers[n].interval); delete _nodeTimers[n]; }
   });
   document.querySelectorAll('.pipe-line').forEach(l => l.className = 'pipe-line pending');
 }
+
+const _defaultSubs = {
+  enrichment: 'GO & KEGG',
+  planning: 'Query Strategy',
+  search: 'Tavily API',
+  pubmed: 'Entrez API',
+  extraction: 'Relations',
+  llm: 'LLM Gen',
+  done: 'Structuring',
+};
 
 function startNodeTimer(name) {
   if (_nodeTimers[name]) return;
@@ -118,7 +134,9 @@ function failNodeTimer(name) {
 }
 
 function updatePipelineFromEvent(step, message) {
-  document.getElementById('loadingMsg').textContent = message;
+  // Update loading message in pipeline tab
+  const msgEl = document.getElementById('loadingMsg');
+  if (msgEl) msgEl.textContent = message;
   const isFail = /fail|error/i.test(message);
 
   if (step === 'enrichment' && message.includes('Running')) {
@@ -127,10 +145,20 @@ function updatePipelineFromEvent(step, message) {
   } else if (step === 'enrichment' && message.includes('complete')) {
     setPipelineState('enrichment', 'done');
     stopNodeTimer('enrichment');
-    setLineState('line-1-2a', 'active');
-    setLineState('line-1-2b', 'active');
+    setLineState('line-0-1', 'active');
   } else if (step === 'enrichment' && isFail) {
     failNodeTimer('enrichment');
+  } else if (step === 'planning' && message.includes('Generating')) {
+    setPipelineState('planning', 'active');
+    startNodeTimer('planning');
+    setLineState('line-0-1', 'done');
+  } else if (step === 'planning' && !isFail) {
+    setPipelineState('planning', 'done');
+    stopNodeTimer('planning');
+    setLineState('line-1-2a', 'active');
+    setLineState('line-1-2b', 'active');
+  } else if (step === 'planning' && isFail) {
+    failNodeTimer('planning');
   } else if (step === 'search' && (message.includes('Searching') || message.includes('Skipping web'))) {
     if (message.includes('Skipping')) {
       setPipelineState('search', 'done');
@@ -167,10 +195,22 @@ function updatePipelineFromEvent(step, message) {
     startNodeTimer('extraction');
     setLineState('line-2a-3', 'done');
     setLineState('line-2b-3', 'done');
+    // Show progress in subtitle (e.g. "3/10")
+    const match = message.match(/(\d+)\/(\d+)/);
+    if (match) {
+      const sub = document.querySelector('#node-extraction .node-sub');
+      if (sub) sub.textContent = `${match[1]} / ${match[2]}`;
+    }
   } else if (step === 'extraction' && (message.includes('Extracted') || message.includes('Skipping'))) {
     setPipelineState('extraction', 'done');
     stopNodeTimer('extraction');
     setLineState('line-3-4', 'active');
+    // Show final count
+    const match = message.match(/(\d+) relations/);
+    if (match) {
+      const sub = document.querySelector('#node-extraction .node-sub');
+      if (sub) sub.textContent = `${match[1]} relations`;
+    }
   } else if (step === 'extraction' && isFail) {
     failNodeTimer('extraction');
     setLineState('line-3-4', 'active');
@@ -194,6 +234,115 @@ function updatePipelineFromEvent(step, message) {
   }
 }
 
+/* ---- Progressive / Partial Data ---- */
+
+function handlePartialData(data) {
+  if (data.enrichment_results) {
+    const er = data.enrichment_results;
+    const panel = document.getElementById('panel-enrichment');
+    if (!panel) return;
+
+    const enrichKeys = Object.keys(er);
+    const goCount = (er.GO || []).length;
+    const keggCount = (er.KEGG || []).length;
+    const subLabels = { GO: 'GO Biological Process', KEGG: 'KEGG Pathways' };
+
+    let subTabsHtml = '<div class="sub-tabs">';
+    let subPanelsHtml = '';
+    enrichKeys.forEach((k, j) => {
+      const subActive = j === 0 ? ' active' : '';
+      subTabsHtml += `<button class="sub-tab-btn${subActive}" data-subtab="enrich-${k}" onclick="switchSubTab('enrichment','enrich-${k}')">${subLabels[k] || k}</button>`;
+      subPanelsHtml += `<div class="sub-panel${subActive}" id="subpanel-enrich-${k}"><div class="table-card"><div class="table-wrap">${buildTable(er[k] || [])}</div></div></div>`;
+    });
+    subTabsHtml += '</div>';
+    panel.innerHTML = enrichKeys.length ? subTabsHtml + subPanelsHtml : '<div class="no-data">No enrichment results.</div>';
+
+    // Update enrichment tab count
+    const tabBtn = document.querySelector('[data-tab="enrichment"]');
+    if (tabBtn) {
+      const count = goCount + keggCount;
+      tabBtn.innerHTML = `<i data-lucide="bar-chart-3"></i> Enrichment <span class="tab-count">${count}</span>`;
+    }
+    lucide.createIcons();
+  }
+
+  if (data.sources) {
+    const sources = data.sources;
+    const webSources = sources.web || [];
+    const pubmedSources = sources.pubmed || [];
+    const panel = document.getElementById('panel-sources');
+    if (!panel) return;
+
+    let subTabsHtml = '<div class="sub-tabs">';
+    let subPanelsHtml = '';
+    subTabsHtml += `<button class="sub-tab-btn active" data-subtab="src-pubmed" onclick="switchSubTab('sources','src-pubmed')">PubMed ${pubmedSources.length}</button>`;
+    subPanelsHtml += `<div class="sub-panel active" id="subpanel-src-pubmed"><div class="table-card"><div class="sources-list">${renderPubmedSources(pubmedSources)}</div></div></div>`;
+    subTabsHtml += `<button class="sub-tab-btn" data-subtab="src-web" onclick="switchSubTab('sources','src-web')">Web ${webSources.length}</button>`;
+    subPanelsHtml += `<div class="sub-panel" id="subpanel-src-web"><div class="table-card"><div class="sources-list">${renderWebSources(webSources)}</div></div></div>`;
+    subTabsHtml += '</div>';
+    panel.innerHTML = subTabsHtml + subPanelsHtml;
+
+    // Update sources tab count
+    const tabBtn = document.querySelector('[data-tab="sources"]');
+    if (tabBtn) {
+      const total = webSources.length + pubmedSources.length;
+      tabBtn.innerHTML = `<i data-lucide="book-open"></i> Sources <span class="tab-count">${total}</span>`;
+    }
+    lucide.createIcons();
+  }
+}
+
+/* ---- Pipeline HTML (reusable in tab) ---- */
+
+function getPipelineHTML() {
+  return `
+    <div class="pipeline-tab-wrap">
+      <div class="loading-header">
+        <h3>Pipeline Execution</h3>
+        <p id="loadingMsg">Initializing pipeline...</p>
+      </div>
+      <div class="pipeline-canvas">
+        <svg viewBox="0 0 1020 280" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0">
+          <path id="line-0-1" class="pipe-line pending" d="M 75 140 L 210 140" fill="none"/>
+          <path id="line-1-2a" class="pipe-line pending" d="M 210 140 C 300 140, 300 65, 390 65" fill="none"/>
+          <path id="line-1-2b" class="pipe-line pending" d="M 210 140 C 300 140, 300 215, 390 215" fill="none"/>
+          <path id="line-2a-3" class="pipe-line pending" d="M 390 65 C 480 65, 480 140, 570 140" fill="none"/>
+          <path id="line-2b-3" class="pipe-line pending" d="M 390 215 C 480 215, 480 140, 570 140" fill="none"/>
+          <path id="line-3-4" class="pipe-line pending" d="M 570 140 L 730 140" fill="none"/>
+          <path id="line-4-5" class="pipe-line pending" d="M 730 140 L 900 140" fill="none"/>
+        </svg>
+        <div class="pipe-node" data-status="pending" id="node-enrichment" style="left:75px;top:140px">
+          <div class="node-circle"><i data-lucide="network"></i></div>
+          <div class="node-label"><div class="node-title">Enrichment</div><div class="node-sub">GO & KEGG</div><div class="node-timer"></div></div>
+        </div>
+        <div class="pipe-node" data-status="pending" id="node-planning" style="left:210px;top:140px">
+          <div class="node-circle"><i data-lucide="route"></i></div>
+          <div class="node-label"><div class="node-title">Planning</div><div class="node-sub">Query Strategy</div><div class="node-timer"></div></div>
+        </div>
+        <div class="pipe-node" data-status="pending" id="node-search" style="left:390px;top:65px">
+          <div class="node-circle"><i data-lucide="globe"></i></div>
+          <div class="node-label"><div class="node-title">Web Search</div><div class="node-sub">Tavily API</div><div class="node-timer"></div></div>
+        </div>
+        <div class="pipe-node" data-status="pending" id="node-pubmed" style="left:390px;top:215px">
+          <div class="node-circle"><i data-lucide="book-open"></i></div>
+          <div class="node-label"><div class="node-title">PubMed</div><div class="node-sub">Entrez API</div><div class="node-timer"></div></div>
+        </div>
+        <div class="pipe-node" data-status="pending" id="node-extraction" style="left:570px;top:140px">
+          <div class="node-circle"><i data-lucide="scan-search"></i></div>
+          <div class="node-label"><div class="node-title">Extraction</div><div class="node-sub">Relations</div><div class="node-timer"></div></div>
+        </div>
+        <div class="pipe-node" data-status="pending" id="node-llm" style="left:730px;top:140px">
+          <div class="node-circle"><i data-lucide="brain-circuit"></i></div>
+          <div class="node-label"><div class="node-title">Synthesis</div><div class="node-sub">LLM Gen</div><div class="node-timer"></div></div>
+        </div>
+        <div class="pipe-node" data-status="pending" id="node-done" style="left:900px;top:140px">
+          <div class="node-circle"><i data-lucide="file-text"></i></div>
+          <div class="node-label"><div class="node-title">Report</div><div class="node-sub">Structuring</div><div class="node-timer"></div></div>
+        </div>
+      </div>
+    </div>`;
+}
+
 /* ---- Analysis ---- */
 
 function runAnalysis() {
@@ -202,50 +351,134 @@ function runAnalysis() {
   const pval = document.getElementById('pval').value;
   if (!genes) return;
 
-  resetPipeline();
-  switchView('loading');
-  lucide.createIcons();
-  document.getElementById('loadingMsg').textContent = 'Initializing...';
+  _pipelineRunning = true;
   document.getElementById('runBtn').disabled = true;
+
+  // Set up results view immediately with pipeline tab
+  document.getElementById('statusBadge').innerHTML = '<i data-lucide="loader-2"></i> Running...';
+  document.getElementById('resultsTitle').textContent = disease || 'Analysis';
+  const geneList = genes.split(/[,\s\n]+/).filter(g => g.trim());
+  document.getElementById('resultsMeta').innerHTML = `Targeting <b>${geneList.length}</b> genes`;
+  document.getElementById('statsGrid').innerHTML = '';
+  document.getElementById('cancelBtn').style.display = '';
+
+  // Build tabs: Pipeline first, others as placeholders
+  document.getElementById('resultTabs').innerHTML =
+    `<button class="tab-btn active" data-tab="pipeline" onclick="switchTab('pipeline')"><i data-lucide="activity"></i> Pipeline</button>` +
+    `<button class="tab-btn" data-tab="enrichment" onclick="switchTab('enrichment')"><i data-lucide="bar-chart-3"></i> Enrichment</button>` +
+    `<button class="tab-btn" data-tab="network" onclick="switchTab('network')"><i data-lucide="share-2"></i> Network</button>` +
+    `<button class="tab-btn" data-tab="sources" onclick="switchTab('sources')"><i data-lucide="book-open"></i> Sources</button>` +
+    `<button class="tab-btn" data-tab="report" onclick="switchTab('report')"><i data-lucide="file-text"></i> Insight Report</button>`;
+
+  document.getElementById('tabPanels').innerHTML =
+    `<div class="tab-panel active" id="panel-pipeline">${getPipelineHTML()}</div>` +
+    `<div class="tab-panel" id="panel-enrichment"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>` +
+    `<div class="tab-panel" id="panel-network"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>` +
+    `<div class="tab-panel" id="panel-sources"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>` +
+    `<div class="tab-panel" id="panel-report"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>`;
+
+  document.getElementById('navResults').disabled = false;
+  switchView('results');
+  lucide.createIcons();
+
+  // Reset pipeline node states
+  resetPipeline();
 
   const params = new URLSearchParams({ genes, disease, pval });
   const es = new EventSource(API_PREFIX + '/api/analyze/stream?' + params);
+  _eventSource = es;
 
   es.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.event === 'result') {
       es.close();
+      _eventSource = null;
+      _pipelineRunning = false;
       currentResult = msg.data;
-      renderResult(msg.data);
-      saveHistory(msg.data);
-      document.getElementById('runBtn').disabled = false;
-      document.getElementById('navResults').disabled = false;
-      switchView('results');
+      finishPipeline(msg.data, false);
     } else if (msg.event === 'error') {
       es.close();
+      _eventSource = null;
+      _pipelineRunning = false;
       document.getElementById('runBtn').disabled = false;
-      document.getElementById('loadingMsg').textContent = msg.message;
-      setTimeout(() => switchView('input'), 2000);
+      document.getElementById('cancelBtn').style.display = 'none';
+      document.getElementById('statusBadge').innerHTML = '<i data-lucide="alert-circle"></i> Error';
+      const msgEl = document.getElementById('loadingMsg');
+      if (msgEl) msgEl.textContent = msg.message;
+      lucide.createIcons();
     } else {
       updatePipelineFromEvent(msg.event, msg.message);
+      // Handle partial data
+      if (msg.data) handlePartialData(msg.data);
     }
   };
 
   es.onerror = () => {
     es.close();
+    _eventSource = null;
+    _pipelineRunning = false;
     document.getElementById('runBtn').disabled = false;
-    document.getElementById('loadingMsg').textContent = 'Connection lost.';
-    setTimeout(() => switchView('input'), 2000);
+    document.getElementById('cancelBtn').style.display = 'none';
+    document.getElementById('statusBadge').innerHTML = '<i data-lucide="wifi-off"></i> Connection Lost';
+    const msgEl = document.getElementById('loadingMsg');
+    if (msgEl) msgEl.textContent = 'Connection lost.';
+    lucide.createIcons();
   };
+}
+
+function cancelAnalysis() {
+  if (_eventSource) {
+    _eventSource.close();
+    _eventSource = null;
+  }
+  _pipelineRunning = false;
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('cancelBtn').style.display = 'none';
+
+  // Mark active nodes as cancelled
+  ['enrichment','planning','search','pubmed','extraction','llm','done'].forEach(n => {
+    const el = document.getElementById('node-' + n);
+    if (el && el.dataset.status === 'active') {
+      setPipelineState(n, 'cancelled');
+      stopNodeTimer(n);
+    }
+  });
+
+  document.getElementById('statusBadge').innerHTML = '<i data-lucide="circle-stop"></i> Stopped';
+  const msgEl = document.getElementById('loadingMsg');
+  if (msgEl) msgEl.textContent = 'Pipeline stopped by user.';
+  lucide.createIcons();
+
+  // Save partial result if we have anything from history context
+  showToast('Pipeline stopped — partial results preserved');
+}
+
+function finishPipeline(data, wasCancelled) {
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('cancelBtn').style.display = 'none';
+
+  if (!wasCancelled) {
+    document.getElementById('statusBadge').innerHTML = '<i data-lucide="check-circle-2"></i> Analysis Complete';
+  }
+
+  currentResult = data;
+  renderResultTabs(data);
+  saveHistory(data);
+  lucide.createIcons();
 }
 
 /* ---- Render Results ---- */
 
-function renderResult(data) {
+function renderResultTabs(data) {
   const er = data.enrichment_results || {};
   const sources = data.sources || {};
   const webSources = sources.web || data.web_sources || [];
   const pubmedSources = sources.pubmed || [];
+  const goCount = (er.GO || []).length;
+  const keggCount = (er.KEGG || []).length;
+  const totalSources = webSources.length + pubmedSources.length;
+  const relationsCount = (data.gene_relations || []).length;
+  const graphData = data.graph || { nodes: [], edges: [] };
 
   // Header
   document.getElementById('resultsTitle').textContent = data.disease_context || 'Analysis';
@@ -253,11 +486,6 @@ function renderResult(data) {
     `Targeting <b>${data.input_genes.length}</b> genes`;
 
   // Stats grid
-  const goCount = (er.GO || []).length;
-  const keggCount = (er.KEGG || []).length;
-  const totalSources = webSources.length + pubmedSources.length;
-  const relationsCount = (data.gene_relations || []).length;
-  const graphData = data.graph || { nodes: [], edges: [] };
   document.getElementById('statsGrid').innerHTML = `
     <div class="stat-card">
       <div class="stat-icon teal"><i data-lucide="dna"></i></div>
@@ -281,8 +509,9 @@ function renderResult(data) {
     </div>
   `;
 
-  // Main tabs
+  // Build tab buttons — keep pipeline, update counts
   const mainTabs = [
+    { key: 'pipeline', label: 'Pipeline', icon: 'activity', count: null },
     { key: 'enrichment', label: 'Enrichment', icon: 'bar-chart-3', count: goCount + keggCount },
     { key: 'network', label: 'Network', icon: 'share-2', count: graphData.nodes.length },
     { key: 'sources', label: 'Sources', icon: 'book-open', count: totalSources },
@@ -293,11 +522,21 @@ function renderResult(data) {
   let panelsHtml = '';
 
   mainTabs.forEach((tab, i) => {
-    const active = i === 0 ? ' active' : '';
+    // Default to enrichment tab after completion
+    const active = tab.key === 'enrichment' ? ' active' : '';
     const countHtml = tab.count !== null ? `<span class="tab-count">${tab.count}</span>` : '';
     tabsHtml += `<button class="tab-btn${active}" data-tab="${tab.key}" onclick="switchTab('${tab.key}')"><i data-lucide="${tab.icon}"></i> ${tab.label} ${countHtml}</button>`;
 
-    if (tab.key === 'enrichment') {
+    if (tab.key === 'pipeline') {
+      // Preserve existing pipeline panel content (with timers)
+      const existing = document.getElementById('panel-pipeline');
+      if (existing) {
+        panelsHtml += `<div class="tab-panel" id="panel-pipeline">${existing.innerHTML}</div>`;
+      } else {
+        panelsHtml += `<div class="tab-panel" id="panel-pipeline">${getPipelineHTML()}</div>`;
+      }
+
+    } else if (tab.key === 'enrichment') {
       const enrichKeys = Object.keys(er);
       const subLabels = { GO: 'GO Biological Process', KEGG: 'KEGG Pathways' };
       let subTabsHtml = '<div class="sub-tabs">';
@@ -308,7 +547,7 @@ function renderResult(data) {
         subPanelsHtml += `<div class="sub-panel${subActive}" id="subpanel-enrich-${k}"><div class="table-card"><div class="table-wrap">${buildTable(er[k] || [])}</div></div></div>`;
       });
       subTabsHtml += '</div>';
-      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${subTabsHtml}${subPanelsHtml}</div>`;
+      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${enrichKeys.length ? subTabsHtml + subPanelsHtml : '<div class="no-data">No enrichment results.</div>'}</div>`;
 
     } else if (tab.key === 'network') {
       panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">
@@ -320,13 +559,10 @@ function renderResult(data) {
     } else if (tab.key === 'sources') {
       let subTabsHtml = '<div class="sub-tabs">';
       let subPanelsHtml = '';
-
       subTabsHtml += `<button class="sub-tab-btn active" data-subtab="src-pubmed" onclick="switchSubTab('sources','src-pubmed')">PubMed ${pubmedSources.length}</button>`;
       subPanelsHtml += `<div class="sub-panel active" id="subpanel-src-pubmed"><div class="table-card"><div class="sources-list">${renderPubmedSources(pubmedSources)}</div></div></div>`;
-
       subTabsHtml += `<button class="sub-tab-btn" data-subtab="src-web" onclick="switchSubTab('sources','src-web')">Web ${webSources.length}</button>`;
       subPanelsHtml += `<div class="sub-panel" id="subpanel-src-web"><div class="table-card"><div class="sources-list">${renderWebSources(webSources)}</div></div></div>`;
-
       subTabsHtml += '</div>';
       panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${subTabsHtml}${subPanelsHtml}</div>`;
 
@@ -348,8 +584,14 @@ function renderResult(data) {
   document.getElementById('tabPanels').innerHTML = panelsHtml;
   lucide.createIcons();
 
-  // Store graph data for lazy rendering when Network tab is shown
   window._graphData = graphData;
+}
+
+// Keep old renderResult as alias for history loading
+function renderResult(data) {
+  document.getElementById('statusBadge').innerHTML = '<i data-lucide="check-circle-2"></i> Analysis Complete';
+  document.getElementById('cancelBtn').style.display = 'none';
+  renderResultTabs(data);
 }
 
 /* ---- Network Graph (D3) ---- */
@@ -367,14 +609,12 @@ function renderNetworkGraph(graphData) {
     .attr('viewBox', [0, 0, width, height])
     .style('cursor', 'grab');
 
-  // Zoom & pan
   const g = svg.append('g');
   const zoom = d3.zoom()
     .scaleExtent([0.3, 5])
     .on('zoom', (event) => { g.attr('transform', event.transform); });
   svg.call(zoom);
 
-  // Defs for arrow markers
   const defs = svg.append('defs');
   ['relation','enrichment'].forEach(t => {
     defs.append('marker')
@@ -389,7 +629,6 @@ function renderNetworkGraph(graphData) {
   const nodes = graphData.nodes.map(d => ({...d}));
   const edges = graphData.edges.map(d => ({...d}));
 
-  // Color and size by type
   const typeColor = {
     gene: '#344054', go: '#667085', kegg: '#667085',
     disease: '#98a2b3', drug: '#98a2b3', pathway: '#667085', other: '#d0d5dd',
@@ -405,7 +644,6 @@ function renderNetworkGraph(graphData) {
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collision', d3.forceCollide().radius(d => (typeRadius[d.type] || 5) + 6));
 
-  // Edges
   const link = g.append('g')
     .selectAll('line').data(edges).join('line')
     .attr('stroke', d => d.type === 'relation' ? '#98a2b3' : '#e4e7ec')
@@ -413,7 +651,6 @@ function renderNetworkGraph(graphData) {
     .attr('stroke-dasharray', d => d.type === 'enrichment' ? '3,3' : 'none')
     .attr('marker-end', d => d.type === 'relation' ? 'url(#arrow-relation)' : '');
 
-  // Nodes
   const node = g.append('g')
     .selectAll('g').data(nodes).join('g')
     .call(d3.drag()
@@ -439,7 +676,6 @@ function renderNetworkGraph(graphData) {
     .attr('fill', d => d.is_input ? '#101828' : '#98a2b3')
     .style('pointer-events', 'none');
 
-  // Hover interaction
   node.on('mouseover', function(e, d) {
     const connected = new Set();
     connected.add(d.id);
@@ -454,14 +690,12 @@ function renderNetworkGraph(graphData) {
     link.style('opacity', 1);
   });
 
-  // Tooltip on click
   node.on('click', function(e, d) {
     const rels = (graphData.edges || []).filter(
       edge => edge.type === 'relation' && (edge.source === d.id || edge.target === d.id ||
         (edge.source.id || edge.source) === d.id || (edge.target.id || edge.target) === d.id)
     );
     if (rels.length > 0) {
-      const info = rels.map(r => `${r.source.label || r.source} → ${r.target.label || r.target} [${r.relation}]`).join('\n');
       showToast(`${d.label}: ${rels.length} relations`, 3000);
     }
   });
@@ -520,7 +754,6 @@ function switchSubTab(parentKey, subKey) {
 function switchTab(key) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + key));
-  // Lazy-render D3 graph when Network tab is first shown
   if (key === 'network' && window._graphData && window._graphData.nodes.length > 0) {
     const container = document.getElementById('networkGraph');
     if (container && !container.querySelector('svg')) {

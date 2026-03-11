@@ -172,38 +172,15 @@ textarea::placeholder, input::placeholder { color: var(--gray-300); }
 .btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 .btn-secondary { background: var(--white); color: var(--gray-700); border: 1px solid var(--gray-200); box-shadow: var(--shadow-xs); }
 .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); }
+.btn-danger { background: var(--white); color: var(--red-500); border: 1px solid var(--red-200, #fecaca); box-shadow: var(--shadow-xs); }
+.btn-danger:hover { background: var(--red-50); border-color: var(--red-500); }
 .btn [data-lucide] { width: 14px; height: 14px; }
 
 /* ================================================================
    PIPELINE / LOADING — Elegant minimal node + dot grid canvas
    ================================================================ */
-.loading-view {
-  display: none; flex-direction: column; align-items: center;
-  justify-content: center; min-height: 70vh; animation: fadeUp .3s ease;
-  position: relative; border-radius: 16px; border: 1px solid var(--gray-200);
-  margin: 1rem 0; overflow: hidden;
-}
-.loading-view.active { display: flex; }
-
-/* Dot grid canvas */
-.loading-view::before {
-  content: ''; position: absolute; inset: 0;
-  background: radial-gradient(circle, var(--gray-300) 0.8px, transparent 0.8px);
-  background-size: 16px 16px;
-  opacity: 0.45; pointer-events: none;
-}
-
-.loading-header {
-  text-align: center; margin-bottom: 2rem; z-index: 2; position: relative;
-}
-.loading-header h3 {
-  font-size: 10px; font-weight: 800; color: var(--gray-900);
-  text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 0.4rem;
-}
-.loading-header p {
-  color: var(--gray-400); font-size: 11px; font-family: var(--font-mono);
-  letter-spacing: 0.06em;
-}
+.loading-view { display: none; }
+.loading-view.active { display: none; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes dash { to { stroke-dashoffset: -16; } }
@@ -289,6 +266,41 @@ textarea::placeholder, input::placeholder { color: var(--gray-300); }
   stroke-dasharray: 5, 5; animation: dash .8s linear infinite;
 }
 .pipe-line.done { stroke: var(--gray-300); stroke-width: 1.5; opacity: .7; }
+
+/* Pipeline inside result tab */
+.pipeline-tab-wrap {
+  position: relative; border-radius: 12px; border: 1px solid var(--gray-200);
+  overflow: hidden; padding: 2rem 1rem;
+}
+.pipeline-tab-wrap::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle, var(--gray-300) 0.8px, transparent 0.8px);
+  background-size: 16px 16px;
+  opacity: 0.35; pointer-events: none;
+}
+.pipeline-tab-wrap .loading-header {
+  text-align: center; margin-bottom: 1.5rem; z-index: 2; position: relative;
+}
+.pipeline-tab-wrap .loading-header h3 {
+  font-size: 10px; font-weight: 800; color: var(--gray-900);
+  text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 0.4rem;
+}
+.pipeline-tab-wrap .loading-header p {
+  color: var(--gray-400); font-size: 11px; font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+}
+.pipeline-tab-wrap .pipeline-canvas {
+  position: relative; width: 960px; max-width: 100%; height: 280px;
+  margin: 0 auto; z-index: 2;
+}
+
+.pipe-node[data-status="cancelled"] { opacity: 1; }
+.pipe-node[data-status="cancelled"] .node-circle {
+  border-color: var(--amber-600); color: var(--amber-600);
+  background: var(--amber-50);
+}
+.pipe-node[data-status="cancelled"] .node-title { color: var(--amber-600); }
+.pipe-node[data-status="cancelled"] .node-timer { color: var(--amber-600); }
 
 /* ================================================================
    RESULTS
@@ -405,6 +417,9 @@ textarea::placeholder, input::placeholder { color: var(--gray-300); }
 }
 .table-wrap { overflow-x: auto; }
 .no-data { padding: 3rem; text-align: center; color: var(--gray-400); font-size: 0.88rem; }
+.waiting-hint { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+.waiting-hint [data-lucide] { width: 20px; height: 20px; }
+.spin-icon { animation: spin .7s linear infinite; }
 table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
 thead { position: sticky; top: 0; z-index: 2; }
 th {
@@ -673,7 +688,29 @@ tr.sig-mid td.cell-pval { color: var(--gray-700); font-weight: 500; }
     flex-direction: row; gap: 0.75rem; margin-bottom: 1rem;
   }
   .pipe-node .node-label { text-align: left; margin-top: 0; }
-  .loading-view { min-height: 50vh; padding: 1.5rem; }
+  .pipeline-tab-wrap { padding: 1.5rem 0.5rem; }
+  .pipeline-tab-wrap .pipeline-canvas {
+    width: 100% !important; height: auto !important;
+    min-height: 560px; max-width: 300px;
+  }
+  .pipeline-tab-wrap .pipeline-canvas svg { display: none; }
+  .pipeline-tab-wrap .pipe-node {
+    position: relative !important; transform: none !important;
+    left: auto !important; top: auto !important;
+    flex-direction: row; gap: 0.75rem; margin-bottom: 1rem;
+  }
+  .pipeline-tab-wrap .pipe-node .node-label { text-align: left; margin-top: 0; }
+  .pipeline-tab-wrap .pipeline-canvas {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0.5rem 0;
+  }
+  .pipeline-tab-wrap .pipe-node::after {
+    content: ''; position: absolute; left: 22px; bottom: -1rem;
+    width: 1.5px; height: 1rem; background: var(--gray-200);
+  }
+  .pipeline-tab-wrap .pipe-node:last-child::after { display: none; }
+  .pipeline-tab-wrap .pipe-node[data-status="active"]::after { background: var(--gray-900); }
+  .pipeline-tab-wrap .pipe-node[data-status="done"]::after { background: var(--gray-300); }
 
   /* Vertical connector lines via pseudo-elements */
   .pipeline-canvas {
