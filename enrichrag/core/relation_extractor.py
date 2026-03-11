@@ -5,6 +5,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import load_prompt
 from pydantic import BaseModel, Field
 
+from enrichrag.core.extraction_cache import ExtractionCache
 from enrichrag.logging import logger
 
 
@@ -70,7 +71,11 @@ class RelationExtractor:
         self.chain = self.prompt_template | self.structured_llm
         self.raw_results: List[ExtractionResult] = []
 
-    def extract(self, abstracts_df: pd.DataFrame) -> pd.DataFrame:
+    def extract(
+        self,
+        abstracts_df: pd.DataFrame,
+        on_progress: Optional[callable] = None,
+    ) -> pd.DataFrame:
         """
         Run LLM relation extraction on each abstract, return merged Relation Table.
 
@@ -78,11 +83,17 @@ class RelationExtractor:
         ----------
         abstracts_df : Output of PubMedFetcher.to_dataframe(),
                        must have pmid, title, abstract columns
+        on_progress : Optional callback ``(current_index, total)`` for progress updates.
         """
+        cache = ExtractionCache()
         self.raw_results = []
         sources: List[str] = []
+        total = len(abstracts_df)
+        cache_hits = 0
 
-        for _, row in abstracts_df.iterrows():
+        for idx, (_, row) in enumerate(abstracts_df.iterrows(), 1):
+            if on_progress:
+                on_progress(idx, total)
             abstract = row.get("abstract", "")
             if not abstract:
                 continue
@@ -90,16 +101,33 @@ class RelationExtractor:
             pmid = row.get("pmid", "")
             source = f"PMID:{pmid}" if pmid else "unknown"
 
+            # Check cache first
+            if pmid:
+                cached = cache.get(pmid)
+                if cached:
+                    result = ExtractionResult(**cached)
+                    self.raw_results.append(result)
+                    sources.append(source)
+                    cache_hits += 1
+                    logger.debug(f"Cache hit: {source}")
+                    continue
+
             try:
                 result: ExtractionResult = self.chain.invoke(
                     {"text": abstract, "source": source}
                 )
                 self.raw_results.append(result)
                 sources.append(source)
+                # Store in cache
+                if pmid:
+                    cache.put(pmid, result.model_dump())
             except Exception as e:
                 logger.error(f"Extraction failed ({source}): {e}")
 
-        logger.info(f"Successfully extracted relations from {len(self.raw_results)} abstracts")
+        logger.info(
+            f"Extracted relations from {len(self.raw_results)} abstracts "
+            f"({cache_hits} cached, {len(self.raw_results) - cache_hits} new)"
+        )
         return self._to_relation_table(sources)
 
     def get_entities(self) -> pd.DataFrame:
