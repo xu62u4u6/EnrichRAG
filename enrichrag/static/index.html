@@ -6,6 +6,7 @@
   <title>enrichRAG</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
@@ -220,7 +221,7 @@
     @keyframes dash { to { stroke-dashoffset: -16; } }
 
     .pipeline-canvas {
-      position: relative; width: 860px; height: 280px; margin: 0 auto; z-index: 2;
+      position: relative; width: 960px; height: 280px; margin: 0 auto; z-index: 2;
     }
 
     /* Lightweight circle badge nodes */
@@ -580,6 +581,10 @@
     .empty-state h3 { font-size: 0.95rem; font-weight: 700; color: var(--gray-600); margin-bottom: 0.3rem; }
     .empty-state p { font-size: 0.82rem; color: var(--gray-400); max-width: 280px; margin: 0 auto; }
 
+    /* ---- Network Graph ---- */
+    #networkGraph svg { display: block; background: var(--white); }
+    #networkGraph text { user-select: none; }
+
     /* ---- Toast ---- */
     .toast {
       position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--gray-900);
@@ -665,43 +670,55 @@
       </div>
 
       <div class="pipeline-canvas">
-        <svg viewBox="0 0 860 280" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0">
-          <path id="line-1-2a" class="pipe-line pending" d="M 110 140 C 210 140, 210 65, 320 65" fill="none"/>
-          <path id="line-1-2b" class="pipe-line pending" d="M 110 140 C 210 140, 210 215, 320 215" fill="none"/>
-          <path id="line-2a-3" class="pipe-line pending" d="M 320 65 C 430 65, 430 140, 540 140" fill="none"/>
-          <path id="line-2b-3" class="pipe-line pending" d="M 320 215 C 430 215, 430 140, 540 140" fill="none"/>
-          <path id="line-3-4" class="pipe-line pending" d="M 540 140 L 750 140" fill="none"/>
+        <svg viewBox="0 0 960 280" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0">
+          <!-- Enrichment → Web/PubMed -->
+          <path id="line-1-2a" class="pipe-line pending" d="M 95 140 C 180 140, 180 65, 270 65" fill="none"/>
+          <path id="line-1-2b" class="pipe-line pending" d="M 95 140 C 180 140, 180 215, 270 215" fill="none"/>
+          <!-- Web/PubMed → Extraction -->
+          <path id="line-2a-3" class="pipe-line pending" d="M 270 65 C 370 65, 370 140, 450 140" fill="none"/>
+          <path id="line-2b-3" class="pipe-line pending" d="M 270 215 C 370 215, 370 140, 450 140" fill="none"/>
+          <!-- Extraction → LLM -->
+          <path id="line-3-4" class="pipe-line pending" d="M 450 140 L 630 140" fill="none"/>
+          <!-- LLM → Report -->
+          <path id="line-4-5" class="pipe-line pending" d="M 630 140 L 860 140" fill="none"/>
         </svg>
 
-        <div class="pipe-node" data-status="pending" id="node-enrichment" style="left:110px;top:140px">
+        <div class="pipe-node" data-status="pending" id="node-enrichment" style="left:95px;top:140px">
           <div class="node-circle"><i data-lucide="network"></i></div>
           <div class="node-label">
             <div class="node-title">Enrichment</div>
             <div class="node-sub">GO & KEGG</div>
           </div>
         </div>
-        <div class="pipe-node" data-status="pending" id="node-search" style="left:320px;top:65px">
+        <div class="pipe-node" data-status="pending" id="node-search" style="left:270px;top:65px">
           <div class="node-circle"><i data-lucide="globe"></i></div>
           <div class="node-label">
             <div class="node-title">Web Search</div>
             <div class="node-sub">Tavily API</div>
           </div>
         </div>
-        <div class="pipe-node" data-status="pending" id="node-pubmed" style="left:320px;top:215px">
+        <div class="pipe-node" data-status="pending" id="node-pubmed" style="left:270px;top:215px">
           <div class="node-circle"><i data-lucide="book-open"></i></div>
           <div class="node-label">
             <div class="node-title">PubMed</div>
             <div class="node-sub">Entrez API</div>
           </div>
         </div>
-        <div class="pipe-node" data-status="pending" id="node-llm" style="left:540px;top:140px">
+        <div class="pipe-node" data-status="pending" id="node-extraction" style="left:450px;top:140px">
+          <div class="node-circle"><i data-lucide="scan-search"></i></div>
+          <div class="node-label">
+            <div class="node-title">Extraction</div>
+            <div class="node-sub">Relations</div>
+          </div>
+        </div>
+        <div class="pipe-node" data-status="pending" id="node-llm" style="left:630px;top:140px">
           <div class="node-circle"><i data-lucide="brain-circuit"></i></div>
           <div class="node-label">
             <div class="node-title">Synthesis</div>
             <div class="node-sub">LLM Gen</div>
           </div>
         </div>
-        <div class="pipe-node" data-status="pending" id="node-done" style="left:750px;top:140px">
+        <div class="pipe-node" data-status="pending" id="node-done" style="left:860px;top:140px">
           <div class="node-circle"><i data-lucide="file-text"></i></div>
           <div class="node-label">
             <div class="node-title">Report</div>
@@ -796,7 +813,7 @@ function setLineState(lineId, status) {
 }
 
 function resetPipeline() {
-  ['enrichment','search','pubmed','llm','done'].forEach(n => {
+  ['enrichment','search','pubmed','extraction','llm','done'].forEach(n => {
     const el = document.getElementById('node-' + n);
     if (el) el.dataset.status = 'pending';
   });
@@ -828,16 +845,23 @@ function updatePipelineFromEvent(step, message) {
     setLineState('line-1-2b', 'done');
     setLineState('line-2a-3', 'active');
     setLineState('line-2b-3', 'active');
+  } else if (step === 'extraction' && message.includes('Extracting')) {
+    setPipelineState('extraction', 'active');
+    setLineState('line-2a-3', 'done');
+    setLineState('line-2b-3', 'done');
+  } else if (step === 'extraction' && (message.includes('Extracted') || message.includes('Skipping'))) {
+    setPipelineState('extraction', 'done');
+    setLineState('line-3-4', 'active');
   } else if (step === 'llm' && message.includes('Generating')) {
+    setPipelineState('extraction', 'done');
+    setLineState('line-3-4', 'done');
     setPipelineState('llm', 'active');
   } else if (step === 'llm' && (message.includes('generated') || message.includes('Skipping'))) {
     setPipelineState('llm', 'done');
-    setLineState('line-2a-3', 'done');
-    setLineState('line-2b-3', 'done');
-    setLineState('line-3-4', 'active');
+    setLineState('line-4-5', 'active');
   } else if (step === 'done') {
     setPipelineState('done', 'done');
-    setLineState('line-3-4', 'done');
+    setLineState('line-4-5', 'done');
   }
 }
 
@@ -899,6 +923,8 @@ function renderResult(data) {
   const goCount = (er.GO || []).length;
   const keggCount = (er.KEGG || []).length;
   const totalSources = webSources.length + pubmedSources.length;
+  const relationsCount = (data.gene_relations || []).length;
+  const graphData = data.graph || { nodes: [], edges: [] };
   document.getElementById('statsGrid').innerHTML = `
     <div class="stat-card">
       <div class="stat-icon teal"><i data-lucide="dna"></i></div>
@@ -907,13 +933,13 @@ function renderResult(data) {
     </div>
     <div class="stat-card">
       <div class="stat-icon blue"><i data-lucide="git-branch"></i></div>
-      <div class="stat-number">${goCount}</div>
-      <div class="stat-label">GO Terms</div>
+      <div class="stat-number">${goCount + keggCount}</div>
+      <div class="stat-label">Enriched Terms</div>
     </div>
     <div class="stat-card">
-      <div class="stat-icon amber"><i data-lucide="route"></i></div>
-      <div class="stat-number">${keggCount}</div>
-      <div class="stat-label">KEGG Pathways</div>
+      <div class="stat-icon amber"><i data-lucide="scan-search"></i></div>
+      <div class="stat-number">${relationsCount}</div>
+      <div class="stat-label">Relations</div>
     </div>
     <div class="stat-card">
       <div class="stat-icon green"><i data-lucide="book-open"></i></div>
@@ -925,6 +951,7 @@ function renderResult(data) {
   // Main tabs
   const mainTabs = [
     { key: 'enrichment', label: 'Enrichment', icon: 'bar-chart-3', count: goCount + keggCount },
+    { key: 'network', label: 'Network', icon: 'share-2', count: graphData.nodes.length },
     { key: 'sources', label: 'Sources', icon: 'book-open', count: totalSources },
     { key: 'report', label: 'Insight Report', icon: 'file-text', count: null },
   ];
@@ -949,6 +976,13 @@ function renderResult(data) {
       });
       subTabsHtml += '</div>';
       panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${subTabsHtml}${subPanelsHtml}</div>`;
+
+    } else if (tab.key === 'network') {
+      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">
+        <div class="table-card" style="padding:0;position:relative">
+          <div id="networkGraph" style="width:100%;height:520px;overflow:hidden"></div>
+        </div>
+      </div>`;
 
     } else if (tab.key === 'sources') {
       let subTabsHtml = '<div class="sub-tabs">';
@@ -980,6 +1014,123 @@ function renderResult(data) {
   document.getElementById('resultTabs').innerHTML = tabsHtml;
   document.getElementById('tabPanels').innerHTML = panelsHtml;
   lucide.createIcons();
+
+  // Render D3 network graph
+  if (graphData.nodes.length > 0) {
+    renderNetworkGraph(graphData);
+  }
+}
+
+function renderNetworkGraph(graphData) {
+  const container = document.getElementById('networkGraph');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const width = container.clientWidth || 900;
+  const height = 520;
+
+  const svg = d3.select(container).append('svg')
+    .attr('width', width).attr('height', height)
+    .attr('viewBox', [0, 0, width, height]);
+
+  // Defs for arrow markers
+  const defs = svg.append('defs');
+  ['relation','enrichment'].forEach(t => {
+    defs.append('marker')
+      .attr('id', 'arrow-' + t).attr('viewBox', '0 -4 8 8')
+      .attr('refX', 20).attr('refY', 0)
+      .attr('markerWidth', 6).attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path').attr('d', 'M0,-3L7,0L0,3')
+      .attr('fill', t === 'relation' ? '#98a2b3' : '#d0d5dd');
+  });
+
+  const nodes = graphData.nodes.map(d => ({...d}));
+  const edges = graphData.edges.map(d => ({...d}));
+
+  // Color and size by type
+  const typeColor = {
+    gene: '#344054', go: '#667085', kegg: '#667085',
+    disease: '#98a2b3', drug: '#98a2b3', pathway: '#667085', other: '#d0d5dd',
+  };
+  const typeRadius = {
+    gene: 7, go: 5, kegg: 5,
+    disease: 6, drug: 6, pathway: 5, other: 4,
+  };
+
+  const simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(edges).id(d => d.id).distance(80))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide().radius(d => (typeRadius[d.type] || 5) + 6));
+
+  // Edges
+  const link = svg.append('g')
+    .selectAll('line').data(edges).join('line')
+    .attr('stroke', d => d.type === 'relation' ? '#98a2b3' : '#e4e7ec')
+    .attr('stroke-width', d => d.type === 'relation' ? 1.2 : 0.8)
+    .attr('stroke-dasharray', d => d.type === 'enrichment' ? '3,3' : 'none')
+    .attr('marker-end', d => d.type === 'relation' ? 'url(#arrow-relation)' : '');
+
+  // Nodes
+  const node = svg.append('g')
+    .selectAll('g').data(nodes).join('g')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  node.append('circle')
+    .attr('r', d => d.is_input ? (typeRadius[d.type] || 5) + 2 : (typeRadius[d.type] || 5))
+    .attr('fill', d => d.is_input ? '#101828' : (typeColor[d.type] || '#d0d5dd'))
+    .attr('stroke', d => d.is_input ? '#101828' : '#e4e7ec')
+    .attr('stroke-width', d => d.is_input ? 2 : 1)
+    .style('cursor', 'pointer');
+
+  node.append('text')
+    .text(d => d.label)
+    .attr('x', 0).attr('y', d => -(typeRadius[d.type] || 5) - 5)
+    .attr('text-anchor', 'middle')
+    .attr('font-size', d => d.type === 'gene' ? '9px' : '8px')
+    .attr('font-family', 'Manrope, sans-serif')
+    .attr('font-weight', d => d.is_input ? '700' : '500')
+    .attr('fill', d => d.is_input ? '#101828' : '#98a2b3')
+    .style('pointer-events', 'none');
+
+  // Hover interaction
+  node.on('mouseover', function(e, d) {
+    const connected = new Set();
+    connected.add(d.id);
+    edges.forEach(edge => {
+      if (edge.source.id === d.id) connected.add(edge.target.id);
+      if (edge.target.id === d.id) connected.add(edge.source.id);
+    });
+    node.style('opacity', n => connected.has(n.id) ? 1 : 0.15);
+    link.style('opacity', l => (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.06);
+  }).on('mouseout', function() {
+    node.style('opacity', 1);
+    link.style('opacity', 1);
+  });
+
+  // Tooltip on click
+  node.on('click', function(e, d) {
+    const rels = (graphData.edges || []).filter(
+      edge => edge.type === 'relation' && (edge.source === d.id || edge.target === d.id ||
+        (edge.source.id || edge.source) === d.id || (edge.target.id || edge.target) === d.id)
+    );
+    if (rels.length > 0) {
+      const info = rels.map(r => `${r.source.label || r.source} → ${r.target.label || r.target} [${r.relation}]`).join('\n');
+      showToast(`${d.label}: ${rels.length} relations`, 3000);
+    }
+  });
+
+  simulation.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
 }
 
 function renderWebSources(sources) {

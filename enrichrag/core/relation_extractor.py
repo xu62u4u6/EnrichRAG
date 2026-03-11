@@ -8,29 +8,53 @@ from pydantic import BaseModel, Field
 from enrichrag.logging import logger
 
 
-class GeneRelation(BaseModel):
-    """A single gene regulatory relation."""
-    source_gene: str = Field(description="Regulator gene symbol, e.g. TP53")
-    target_gene: str = Field(description="Target gene symbol, e.g. BAX")
-    relation: Literal["up", "down"] = Field(
-        description="Direction: up (upregulate/promote/activate) or down (downregulate/inhibit)"
+class BioEntity(BaseModel):
+    """A biomedical entity extracted from text."""
+    name: str = Field(description="Entity name, e.g. TP53, irinotecan, breast cancer")
+    type: Literal["gene", "disease", "drug", "pathway", "other"] = Field(
+        description="Entity type"
     )
+
+
+class BioRelation(BaseModel):
+    """A relation between two biomedical entities."""
+    source: str = Field(description="Source entity name")
+    source_type: Literal["gene", "disease", "drug", "pathway", "other"] = Field(
+        description="Source entity type"
+    )
+    target: str = Field(description="Target entity name")
+    target_type: Literal["gene", "disease", "drug", "pathway", "other"] = Field(
+        description="Target entity type"
+    )
+    relation: Literal[
+        "upregulate", "downregulate", "inhibit", "activate",
+        "associate", "treat", "cause", "biomarker", "interact",
+    ] = Field(description="Relation type between source and target")
     evidence: str = Field(description="Supporting sentence from the source text")
 
 
 class ExtractionResult(BaseModel):
     """Extraction result from a single abstract."""
-    genes: List[str] = Field(description="All gene symbols mentioned in the abstract")
-    relations: List[GeneRelation] = Field(
+    entities: List[BioEntity] = Field(
         default_factory=list,
-        description="Regulatory relations between genes; empty if none found",
+        description="All biomedical entities mentioned in the text",
     )
+    relations: List[BioRelation] = Field(
+        default_factory=list,
+        description="Relations between entities; empty if none found",
+    )
+
+
+# Keep backward-compatible aliases
+GeneRelation = BioRelation
 
 
 class RelationExtractor:
     """
-    Extracts gene regulatory relations from PubMed abstracts using LLM
+    Extracts biomedical entity relations from PubMed abstracts using LLM
     with Pydantic structured output.
+
+    Supports genes, diseases, drugs, pathways, and other biomedical entities.
     """
 
     def __init__(self, llm: BaseChatModel, template_path: Optional[str] = None):
@@ -78,6 +102,17 @@ class RelationExtractor:
         logger.info(f"Successfully extracted relations from {len(self.raw_results)} abstracts")
         return self._to_relation_table(sources)
 
+    def get_entities(self) -> pd.DataFrame:
+        """Return all extracted entities as a DataFrame."""
+        rows = []
+        for result in self.raw_results:
+            for entity in result.entities:
+                rows.append({"name": entity.name, "type": entity.type})
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df = df.drop_duplicates(subset=["name", "type"], keep="first")
+        return df
+
     def _to_relation_table(self, sources: List[str]) -> pd.DataFrame:
         """Merge all extraction results into a single Relation Table."""
         rows = []
@@ -85,8 +120,10 @@ class RelationExtractor:
             for rel in result.relations:
                 rows.append(
                     {
-                        "source_gene": rel.source_gene,
-                        "target_gene": rel.target_gene,
+                        "source": rel.source,
+                        "source_type": rel.source_type,
+                        "target": rel.target,
+                        "target_type": rel.target_type,
                         "relation": rel.relation,
                         "evidence": rel.evidence,
                         "pmid": source,
@@ -96,6 +133,6 @@ class RelationExtractor:
         df = pd.DataFrame(rows)
         if not df.empty:
             df = df.drop_duplicates(
-                subset=["source_gene", "target_gene", "relation"], keep="first"
+                subset=["source", "target", "relation"], keep="first"
             )
         return df

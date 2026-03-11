@@ -10,7 +10,9 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 
 from enrichrag.core.enricher import GeneEnricher
+from enrichrag.core.graph_builder import build_graph_json
 from enrichrag.core.pubmed import PubMedFetcher
+from enrichrag.core.relation_extractor import RelationExtractor
 from enrichrag.core.web_search import WebSearcher
 from enrichrag.logging import logger
 from enrichrag.prompts.generator import PromptGenerator
@@ -49,11 +51,32 @@ def run_pipeline(
 
     # 2. Parallel Search (Web + PubMed)
     _progress("search", "Searching web and PubMed in parallel...")
-    web_context, web_sources, pubmed_context, pubmed_sources = _parallel_search(
+    web_context, web_sources, pubmed_context, pubmed_sources, pubmed_df = _parallel_search(
         genes, disease, enricher.filtered_results, _progress,
     )
 
-    # 3. LLM
+    # 3. Relation Extraction from PubMed abstracts
+    relations_df = pd.DataFrame()
+    entities_df = pd.DataFrame()
+    if settings.openai_api_key and pubmed_df is not None and not pubmed_df.empty:
+        _progress("extraction", "Extracting biomedical relations from abstracts...")
+        try:
+            llm = ChatOpenAI(
+                model=settings.llm_model,
+                temperature=0,
+                api_key=settings.openai_api_key,
+            )
+            extractor = RelationExtractor(llm=llm)
+            relations_df = extractor.extract(pubmed_df)
+            entities_df = extractor.get_entities()
+            _progress("extraction", f"Extracted {len(relations_df)} relations, {len(entities_df)} entities.")
+        except Exception as e:
+            logger.error(f"Relation extraction failed: {e}")
+            _progress("extraction", f"Relation extraction failed: {e}")
+    else:
+        _progress("extraction", "Skipping relation extraction.")
+
+    # 4. LLM
     insight = ""
     if not settings.openai_api_key:
         _progress("llm", "Skipping LLM — OPENAI_API_KEY not set.")
@@ -91,7 +114,15 @@ def run_pipeline(
             insight = f"Error generating insight: {e}"
             _progress("llm", f"LLM generation failed: {e}")
 
-    # 4. Build result
+    # 5. Build graph
+    graph_json = build_graph_json(
+        input_genes=genes,
+        enrichment_results=enricher.filtered_results,
+        relations_df=relations_df,
+        entities_df=entities_df if not entities_df.empty else None,
+    )
+
+    # 6. Build result
     result = {
         "input_genes": genes,
         "disease_context": disease,
@@ -104,6 +135,8 @@ def run_pipeline(
             "web": web_sources,
             "pubmed": pubmed_sources,
         },
+        "gene_relations": relations_df.to_dict(orient="records") if not relations_df.empty else [],
+        "graph": graph_json,
     }
 
     _progress("done", "Pipeline complete.")
@@ -115,13 +148,14 @@ def _parallel_search(
     disease: str,
     enrichment_results: Dict,
     _progress: Callable,
-) -> Tuple[str, list, str, list]:
+) -> Tuple[str, list, str, list, Optional[pd.DataFrame]]:
     """Run web search and PubMed fetch in parallel threads."""
 
     web_context = ""
     web_sources: list = []
     pubmed_context = ""
     pubmed_sources: list = []
+    pubmed_df: Optional[pd.DataFrame] = None
 
     def _web_search() -> Tuple[str, list]:
         if not settings.tavily_api_key:
@@ -142,10 +176,10 @@ def _parallel_search(
             _progress("search", f"Web search failed: {e}")
             return "", []
 
-    def _pubmed_search() -> Tuple[str, list]:
+    def _pubmed_search() -> Tuple[str, list, Optional[pd.DataFrame]]:
         if not settings.pubmed_email or settings.pubmed_email == "your@email.com":
             _progress("pubmed", "Skipping PubMed — PUBMED_EMAIL not configured.")
-            return "", []
+            return "", [], None
         _progress("pubmed", "Fetching PubMed abstracts...")
         try:
             fetcher = PubMedFetcher(email=settings.pubmed_email, max_results=10)
@@ -153,7 +187,7 @@ def _parallel_search(
             df = fetcher.to_dataframe()
             if df.empty:
                 _progress("pubmed", "No PubMed abstracts found.")
-                return "", []
+                return "", [], None
             parts = []
             sources = []
             for _, row in df.iterrows():
@@ -167,11 +201,11 @@ def _parallel_search(
                     "pub_date": row["pub_date"],
                 })
             _progress("pubmed", f"Fetched {len(df)} PubMed abstracts.")
-            return "\n\n".join(parts), sources
+            return "\n\n".join(parts), sources, df
         except Exception as e:
             logger.error(f"PubMed fetch failed: {e}")
             _progress("pubmed", f"PubMed fetch failed: {e}")
-            return "", []
+            return "", [], None
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         web_future = executor.submit(_web_search)
@@ -181,10 +215,10 @@ def _parallel_search(
             if future is web_future:
                 web_context, web_sources = future.result()
             else:
-                pubmed_context, pubmed_sources = future.result()
+                pubmed_context, pubmed_sources, pubmed_df = future.result()
 
     _progress("search", "All searches complete.")
-    return web_context, web_sources, pubmed_context, pubmed_sources
+    return web_context, web_sources, pubmed_context, pubmed_sources, pubmed_df
 
 
 def save_result(result: Dict, output: Path) -> None:

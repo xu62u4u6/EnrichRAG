@@ -1,48 +1,38 @@
 _type: prompt
 input_variables: ["text", "source"]
 template: |
-    你是一個生物醫學實體與關係提取專家。請分析以下文獻摘要或文本，提取：
-    1. 所有提到的基因實體
-    2. 基因之間的調控關係
-    
+    你是一個生物醫學實體與關係提取專家。請分析以下文獻摘要，提取：
+    1. 所有生物醫學實體（基因、疾病、藥物、通路等）
+    2. 實體之間的關係
+
     【文獻來源】
     {source}
-    
+
     【文獻文本】
     {text}
-    
+
+    【實體類型】
+    - gene: 基因符號（如 TP53, KRAS, EGFR, BRCA1）
+    - disease: 疾病名稱（如 breast cancer, leukemia, Alzheimer's disease）
+    - drug: 藥物名稱（如 irinotecan, olaparib, cisplatin）
+    - pathway: 生物通路（如 PI3K/AKT pathway, Wnt signaling）
+    - other: 其他生物醫學實體
+
+    【關係類型】
+    - upregulate: 上調、促進基因表達
+    - downregulate: 下調、抑制基因表達
+    - activate: 活化（蛋白質/通路層面）
+    - inhibit: 抑制（蛋白質/通路層面）
+    - associate: 統計關聯（如 gene-disease association）
+    - treat: 藥物治療疾病
+    - cause: 導致（如突變導致疾病）
+    - biomarker: 作為生物標記
+    - interact: 蛋白質交互作用（protein-protein interaction）
+
     【提取規則】
-    - 基因實體：提取所有基因符號（如 TP53, KRAS, EGFR）
-    - 調控關係：識別基因間的 up-regulation（上調/促進）或 down-regulation（下調/抑制）
-    - 關係類型：
-      * "upregulate" / "activate" / "promote" / "increase" → relation = "up"
-      * "downregulate" / "inhibit" / "suppress" / "decrease" → relation = "down"
-    
-    【輸出格式】
-    請輸出 JSON 格式：
-    ```json
-    {{
-      "source_reference": "PMID:12345678 或完整來源資訊",
-      "genes": ["TP53", "BAX", "BCL2"],
-      "relations": [
-        {{
-          "source_gene": "TP53",
-          "target_gene": "BAX",
-          "relation": "up",
-          "evidence": "TP53 upregulates BAX expression in response to DNA damage"
-        }},
-        {{
-          "source_gene": "TP53",
-          "target_gene": "BCL2",
-          "relation": "down",
-          "evidence": "TP53 inhibits BCL2 transcription"
-        }}
-      ]
-    }}
-    ```
-    
-    【注意事項】
-    1. 只提取明確提到的基因符號，忽略蛋白質複合體或通路名稱
-    2. 只提取直接的調控關係，避免推測間接作用
-    3. evidence 欄位必須是原文中的完整句子
-    4. 如果沒有找到基因或關係，返回空數組
+    1. 提取所有明確提到的實體，標註正確的類型
+    2. 只提取文本中明確描述的關係，避免推測
+    3. evidence 欄位必須是原文中的相關句子或片段
+    4. 如果沒有找到實體或關係，返回空數組
+    5. 基因符號使用官方 HGNC 符號（大寫）
+    6. 同一對實體可有多種關係（如 gene upregulate gene 且 gene associate disease）
