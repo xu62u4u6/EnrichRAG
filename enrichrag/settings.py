@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     server_host: str = "127.0.0.1"
     server_port: int = 9001
+    url_prefix: str = ""
 
 
 settings = Settings()
