@@ -8,6 +8,8 @@ let currentView = 'input';
 let _eventSource = null;
 let _pipelineRunning = false;
 let currentValidation = null;
+let isChatOpen = false;
+let chatHistory = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
@@ -107,6 +109,7 @@ function renderValidationResultsPreview(validationData, disease) {
     graph: { nodes: [], edges: [] },
     gene_validation: validationData,
   };
+  resetChatSession();
   document.getElementById('statusBadge').innerHTML = '<i data-lucide="badge-check"></i> Validation Ready';
   document.getElementById('navResults').disabled = false;
 }
@@ -684,6 +687,7 @@ function runAnalysis() {
         msg.data.gene_validation = currentValidation;
       }
       currentResult = msg.data;
+      resetChatSession();
       finishPipeline(msg.data, false);
     } else if (msg.event === 'error') {
       es.close();
@@ -754,6 +758,7 @@ function finishPipeline(data, wasCancelled) {
   }
 
   currentResult = data;
+  resetChatSession();
   renderResultTabs(data);
   saveHistory(data);
   lucide.createIcons();
@@ -1252,6 +1257,7 @@ function loadHistory(idx) {
   const hist = getHistory();
   if (!hist[idx]) return;
   currentResult = hist[idx].data;
+  resetChatSession();
   document.getElementById('genes').value = (currentResult.input_genes || []).join(', ');
   document.getElementById('disease').value = currentResult.disease_context || '';
   document.getElementById('navResults').disabled = false;
@@ -1270,4 +1276,227 @@ function esc(s) {
 
 function escAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+
+/* ---- Chat ---- */
+
+function resetChatSession() {
+  chatHistory = [];
+  const body = document.getElementById('chatBody');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="chat-message assistant">
+      <div class="msg-content">
+        <p>Ask about the current analysis result, report, sources, or relations.</p>
+        <div class="chat-suggestions" id="chatSuggestions"></div>
+      </div>
+    </div>`;
+  renderChatSuggestions();
+  lucide.createIcons();
+}
+
+function toggleChatDrawer(forceOpen) {
+  const drawer = document.getElementById('chatDrawer');
+  const backdrop = document.getElementById('chatBackdrop');
+  if (!drawer || !backdrop) return;
+  isChatOpen = forceOpen !== undefined ? forceOpen : !isChatOpen;
+  drawer.classList.toggle('open', isChatOpen);
+  drawer.setAttribute('aria-hidden', isChatOpen ? 'false' : 'true');
+  backdrop.classList.toggle('open', isChatOpen);
+  if (isChatOpen) {
+    setTimeout(() => {
+      const input = document.getElementById('chatInput');
+      if (input) input.focus();
+    }, 150);
+  }
+}
+
+function appendChatMessage(role, text, isStreaming = false) {
+  const body = document.getElementById('chatBody');
+  if (!body) return null;
+
+  let msgDiv = null;
+  if (isStreaming && body.lastElementChild?.dataset?.streaming === 'true') {
+    msgDiv = body.lastElementChild;
+    const contentDiv = msgDiv.querySelector('.msg-content');
+    if (text === '...typing...') {
+      contentDiv.innerHTML = '<span class="typing-indicator">...</span>';
+    } else {
+      msgDiv.dataset.raw = (msgDiv.dataset.raw || '') + text;
+      contentDiv.innerHTML = marked.parse(msgDiv.dataset.raw);
+    }
+  } else {
+    msgDiv = document.createElement('div');
+    msgDiv.className = `chat-message ${role}`;
+    msgDiv.dataset.streaming = isStreaming ? 'true' : 'false';
+    msgDiv.dataset.raw = text === '...typing...' ? '' : text;
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'msg-content';
+    contentDiv.innerHTML = text === '...typing...'
+      ? '<span class="typing-indicator">...</span>'
+      : marked.parse(text);
+    msgDiv.appendChild(contentDiv);
+    body.appendChild(msgDiv);
+  }
+
+  body.scrollTop = body.scrollHeight;
+  return msgDiv;
+}
+
+function finishChatStream() {
+  const body = document.getElementById('chatBody');
+  if (body?.lastElementChild) {
+    body.lastElementChild.dataset.streaming = 'false';
+  }
+}
+
+function getSuggestedQuestions(result) {
+  if (!result) {
+    return [
+      'What does this analysis show?',
+      'Which pathways are most enriched?',
+      'What genes stand out in this result?',
+    ];
+  }
+
+  const suggestions = [];
+  const disease = result.disease_context || 'this disease context';
+  const queryPlan = result.query_plan || {};
+  const topGenes = (queryPlan.top_genes || []).filter(Boolean).slice(0, 3);
+  const goRows = (result.enrichment_results?.GO || []).slice(0, 2);
+  const keggRows = (result.enrichment_results?.KEGG || []).slice(0, 2);
+  const relations = result.gene_relations || [];
+  const validation = result.gene_validation || {};
+  const remapped = validation.summary?.remapped || 0;
+
+  suggestions.push(`What is the main biological story of this ${disease} analysis?`);
+
+  if (goRows.length > 0) {
+    suggestions.push(`Why is "${goRows[0].term}" enriched in this gene set?`);
+  }
+  if (keggRows.length > 0) {
+    suggestions.push(`Which KEGG pathways matter most here, and why?`);
+  }
+  if (topGenes.length > 0) {
+    suggestions.push(`Which of ${topGenes.join(', ')} appear most central in the result?`);
+  }
+  if (relations.length > 0) {
+    suggestions.push('What relationships in the extracted evidence look most important?');
+  }
+  if (remapped > 0) {
+    suggestions.push('Did any validated genes get remapped, and does that affect interpretation?');
+  }
+  if ((result.sources?.pubmed || []).length > 0) {
+    suggestions.push('Which PubMed sources best support the current conclusion?');
+  }
+
+  return Array.from(new Set(suggestions)).slice(0, 4);
+}
+
+function renderChatSuggestions() {
+  const container = document.getElementById('chatSuggestions');
+  if (!container) return;
+  const questions = getSuggestedQuestions(currentResult);
+  if (!questions.length) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML =
+    `<p class="chat-suggestions-label">Suggested Questions</p>` +
+    questions.map((question) => (
+      `<button type="button" class="chat-suggestion-btn" onclick="submitSuggestedQuestion('${escAttr(question)}')">` +
+      `<i data-lucide="arrow-right"></i>${esc(question)}</button>`
+    )).join('');
+}
+
+function submitSuggestedQuestion(question) {
+  const input = document.getElementById('chatInput');
+  if (!input) return;
+  input.value = question;
+  handleChatSubmit({
+    preventDefault() {},
+  });
+}
+
+async function handleChatSubmit(e) {
+  e.preventDefault();
+  if (!currentResult) {
+    showToast('No analysis results available to query.', 3000);
+    return;
+  }
+
+  const inputEl = document.getElementById('chatInput');
+  const query = inputEl.value.trim();
+  if (!query) return;
+
+  inputEl.value = '';
+  inputEl.disabled = true;
+
+  appendChatMessage('user', query);
+  appendChatMessage('assistant', '...typing...', true);
+
+  const payload = {
+    query,
+    result: currentResult,
+    history: chatHistory,
+  };
+
+  try {
+    const response = await fetch(`${API_PREFIX}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error('Chat API returned ' + response.status);
+    }
+
+    const body = document.getElementById('chatBody');
+    if (body.lastElementChild?.dataset?.streaming === 'true') {
+      body.lastElementChild.dataset.raw = '';
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let assistantReply = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+
+      for (const chunk of parts) {
+        if (!chunk.startsWith('data: ')) continue;
+        const dataStr = chunk.slice(6).trim();
+        if (!dataStr) continue;
+        const data = JSON.parse(dataStr);
+        if (data.event === 'chunk') {
+          assistantReply += data.data;
+          appendChatMessage('assistant', data.data, true);
+        } else if (data.event === 'done') {
+          finishChatStream();
+        } else if (data.event === 'error') {
+          finishChatStream();
+          appendChatMessage('assistant', `*Error: ${data.message}*`);
+          throw new Error(data.message);
+        }
+      }
+    }
+
+    chatHistory.push({ role: 'user', content: query });
+    chatHistory.push({ role: 'assistant', content: assistantReply });
+  } catch (err) {
+    finishChatStream();
+    appendChatMessage('assistant', `*Failed to fetch response: ${err.message}*`);
+  } finally {
+    inputEl.disabled = false;
+    inputEl.focus();
+  }
 }

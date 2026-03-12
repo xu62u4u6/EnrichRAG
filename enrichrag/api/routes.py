@@ -4,13 +4,21 @@ import asyncio
 import json
 import math
 import re
+from pathlib import Path
 from queue import Empty, Queue
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from enrichrag.core.chat_context import build_chat_prompt_inputs
 from enrichrag.core.gene_validation import GeneValidationService
 from enrichrag.core.pipeline import run_pipeline
+from enrichrag.prompts.generator import PromptGenerator
+from enrichrag.settings import settings
+from langchain_core.output_parsers import StrOutputParser
+from langchain_openai import ChatOpenAI
+
+from .models import ChatRequest
 
 router = APIRouter()
 
@@ -108,5 +116,35 @@ async def analyze_stream(
                 break
 
             await asyncio.sleep(0.3)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.post("/api/chat")
+async def chat_stream(request: ChatRequest):
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=400, detail="OPENAI_API_KEY is not configured.")
+    if not request.result:
+        raise HTTPException(status_code=400, detail="Pipeline result payload is required.")
+
+    async def event_generator():
+        try:
+            llm = ChatOpenAI(
+                model=settings.llm_model_report,
+                temperature=0.2,
+                api_key=settings.openai_api_key,
+                streaming=True,
+            )
+            prompt_path = Path(__file__).parent.parent / "prompts" / "templates" / "chat_qa.yaml"
+            generator = PromptGenerator(template_path=str(prompt_path))
+            chain = generator.prompt_template | llm | StrOutputParser()
+            prompt_inputs = build_chat_prompt_inputs(request.result, request.query)
+
+            async for chunk in chain.astream(prompt_inputs):
+                yield _sse_payload({"event": "chunk", "data": chunk})
+
+            yield _sse_payload({"event": "done", "data": ""})
+        except Exception as e:
+            yield _sse_payload({"event": "error", "message": str(e)})
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

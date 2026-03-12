@@ -99,6 +99,7 @@
           </div>
           <div class="results-actions">
             <button class="btn btn-danger" id="cancelBtn" onclick="cancelAnalysis()" style="display:none"><i data-lucide="square"></i> Stop</button>
+            <button class="btn btn-secondary" onclick="toggleChatDrawer()"><i data-lucide="message-square"></i> Ask Assistant</button>
             <button class="btn btn-secondary" onclick="copyReport()"><i data-lucide="copy"></i> Copy</button>
             <button class="btn btn-secondary" onclick="downloadJSON()"><i data-lucide="download"></i> JSON</button>
           </div>
@@ -124,6 +125,34 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="drawer-backdrop" id="chatBackdrop" onclick="toggleChatDrawer(false)"></div>
+<aside class="chat-drawer" id="chatDrawer" aria-hidden="true">
+  <div class="drawer-header">
+    <div>
+      <div class="drawer-kicker">Analysis QA</div>
+      <h3>EnrichRAG Assistant</h3>
+      <p class="chat-header-note">Context-aware analysis grounded in the current pipeline result.</p>
+    </div>
+    <button class="drawer-close" onclick="toggleChatDrawer(false)" aria-label="Close chat">
+      <i data-lucide="x"></i>
+    </button>
+  </div>
+  <div class="chat-body" id="chatBody">
+    <div class="chat-message assistant chat-message-intro">
+      <div class="msg-content">
+        <p>Ask about the current analysis result, report, sources, or relations.</p>
+        <div class="chat-suggestions" id="chatSuggestions"></div>
+      </div>
+    </div>
+  </div>
+  <div class="chat-footer">
+    <form id="chatForm" onsubmit="handleChatSubmit(event)">
+      <input type="text" id="chatInput" placeholder="Ask about this analysis..." autocomplete="off">
+      <button type="submit" class="btn btn-primary btn-icon"><i data-lucide="send"></i></button>
+    </form>
+    <div class="chat-footer-meta">ENRICHRAG ASSISTANT V1.0</div>
+  </div>
+</aside>
 <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeGeneDrawer()"></div>
 <aside class="gene-drawer" id="geneDrawer" aria-hidden="true">
   <div class="drawer-header">

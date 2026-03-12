@@ -51,3 +51,9 @@ class GeneProfileResponse(BaseModel):
     dbxrefs: str = ""
     modification_date: str = ""
     tax_id: int = 9606
+
+
+class ChatRequest(BaseModel):
+    query: str = Field(..., description="User's question")
+    result: dict = Field(default_factory=dict, description="Full pipeline result payload")
+    history: List[dict] = Field(default_factory=list, description="Previous chat messages")
