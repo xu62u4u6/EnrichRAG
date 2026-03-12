@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import math
 import re
 from queue import Empty, Queue
 
@@ -11,6 +12,22 @@ from fastapi.responses import StreamingResponse
 from enrichrag.core.pipeline import run_pipeline
 
 router = APIRouter()
+
+
+def _json_safe(value):
+    """Recursively convert NaN/Infinity values into JSON-safe nulls."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+def _sse_payload(payload: dict) -> str:
+    safe_payload = _json_safe(payload)
+    return "data: " + json.dumps(safe_payload, ensure_ascii=False, allow_nan=False) + "\n\n"
 
 
 def _parse_genes(raw: str) -> list[str]:
@@ -32,7 +49,7 @@ async def analyze_stream(
     gene_list = _parse_genes(genes)
     if not gene_list:
         return StreamingResponse(
-            iter(["data: " + json.dumps({"event": "error", "message": "No genes"}) + "\n\n"]),
+            iter([_sse_payload({"event": "error", "message": "No genes"})]),
             media_type="text/event-stream",
         )
 
@@ -55,7 +72,7 @@ async def analyze_stream(
             try:
                 while True:
                     msg = progress_queue.get_nowait()
-                    yield f"data: {json.dumps(msg)}\n\n"
+                    yield _sse_payload(msg)
             except Empty:
                 pass
 
@@ -63,13 +80,13 @@ async def analyze_stream(
                 # Drain remaining
                 while not progress_queue.empty():
                     msg = progress_queue.get_nowait()
-                    yield f"data: {json.dumps(msg)}\n\n"
+                    yield _sse_payload(msg)
 
                 try:
                     result = task.result()
-                    yield f"data: {json.dumps({'event': 'result', 'data': result})}\n\n"
+                    yield _sse_payload({"event": "result", "data": result})
                 except Exception as e:
-                    yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+                    yield _sse_payload({"event": "error", "message": str(e)})
                 break
 
             await asyncio.sleep(0.3)

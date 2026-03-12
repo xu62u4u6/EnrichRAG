@@ -188,6 +188,7 @@ textarea::placeholder, input::placeholder { color: var(--gray-300); }
 .pipeline-canvas {
   position: relative; width: 960px; height: 280px; margin: 0 auto; z-index: 2;
 }
+.pipeline-mobile-rail { display: none; }
 
 /* Lightweight circle badge nodes */
 .pipe-node {
@@ -677,53 +678,116 @@ tr.sig-mid td.cell-pval { color: var(--gray-700); font-weight: 500; }
   .card-footer .btn { justify-content: center; }
 
   /* Pipeline → vertical */
-  .pipeline-canvas {
-    width: 100% !important; height: auto !important;
-    min-height: 560px; max-width: 300px;
-  }
-  .pipeline-canvas svg { display: none; }
-  .pipe-node {
-    position: relative !important; transform: none !important;
-    left: auto !important; top: auto !important;
-    flex-direction: row; gap: 0.75rem; margin-bottom: 1rem;
-  }
-  .pipe-node .node-label { text-align: left; margin-top: 0; }
-  .pipeline-tab-wrap { padding: 1.5rem 0.5rem; }
+  .pipeline-tab-wrap { padding: 1.25rem 0.75rem; }
+  .pipeline-tab-wrap .loading-header { margin-bottom: 1.1rem; }
   .pipeline-tab-wrap .pipeline-canvas {
-    width: 100% !important; height: auto !important;
-    min-height: 560px; max-width: 300px;
+    width: 100% !important; height: auto !important; min-height: 0;
+    display: block; max-width: 100%;
   }
-  .pipeline-tab-wrap .pipeline-canvas svg { display: none; }
-  .pipeline-tab-wrap .pipe-node {
-    position: relative !important; transform: none !important;
-    left: auto !important; top: auto !important;
-    flex-direction: row; gap: 0.75rem; margin-bottom: 1rem;
+  .pipeline-tab-wrap .pipeline-desktop-map,
+  .pipeline-tab-wrap > .pipe-node,
+  .pipeline-tab-wrap .pipeline-canvas > .pipe-node {
+    display: none;
   }
-  .pipeline-tab-wrap .pipe-node .node-label { text-align: left; margin-top: 0; }
-  .pipeline-tab-wrap .pipeline-canvas {
-    display: flex; flex-direction: column; align-items: center;
-    padding: 0.5rem 0;
+  .pipeline-mobile-rail {
+    display: grid;
+    gap: 0.7rem;
+    max-width: 28rem;
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
   }
-  .pipeline-tab-wrap .pipe-node::after {
-    content: ''; position: absolute; left: 22px; bottom: -1rem;
-    width: 1.5px; height: 1rem; background: var(--gray-200);
+  .mobile-step {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: start;
   }
-  .pipeline-tab-wrap .pipe-node:last-child::after { display: none; }
-  .pipeline-tab-wrap .pipe-node[data-status="active"]::after { background: var(--gray-900); }
-  .pipeline-tab-wrap .pipe-node[data-status="done"]::after { background: var(--gray-300); }
-
-  /* Vertical connector lines via pseudo-elements */
-  .pipeline-canvas {
-    display: flex; flex-direction: column; align-items: center;
-    padding: 0.5rem 0;
+  .mobile-link {
+    width: 2px;
+    min-height: 100%;
+    justify-self: center;
+    background: linear-gradient(180deg, var(--gray-300) 0%, var(--gray-200) 100%);
+    border-radius: 999px;
   }
-  .pipe-node::after {
-    content: ''; position: absolute; left: 22px; bottom: -1rem;
-    width: 1.5px; height: 1rem; background: var(--gray-200);
+  .mobile-step:last-child .mobile-link { opacity: 0; }
+  .mobile-step[data-branch="single"] .mobile-link { margin-top: -0.1rem; }
+  .mobile-node {
+    position: relative !important;
+    transform: none !important;
+    left: auto !important;
+    top: auto !important;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 0.8rem;
+    align-items: center;
+    padding: 0.95rem 1rem;
+    border: 1px solid rgba(16, 24, 40, 0.08);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-xs);
+    margin-bottom: 0;
   }
-  .pipe-node:last-child::after { display: none; }
-  .pipe-node[data-status="active"]::after { background: var(--gray-900); }
-  .pipe-node[data-status="done"]::after { background: var(--gray-300); }
+  .mobile-node .node-label { text-align: left; margin-top: 0; }
+  .mobile-node .node-title { letter-spacing: 0.14em; }
+  .mobile-node .node-sub { font-size: 10px; }
+  .mobile-branch-group {
+    position: relative;
+    padding: 0.7rem 0.8rem 0.35rem;
+    border: 1px solid rgba(16, 24, 40, 0.08);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(249,250,251,0.95));
+    box-shadow: var(--shadow-xs);
+  }
+  .mobile-branch-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 0 0.7rem 0.15rem;
+  }
+  .branch-kicker {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--gray-500);
+    font-weight: 800;
+  }
+  .branch-rule {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--gray-300), transparent);
+  }
+  .mobile-branch-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+  .mobile-branch-grid .mobile-step {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+  .mobile-branch-grid .mobile-link {
+    width: 100%;
+    height: 2px;
+    min-height: 0;
+    background: linear-gradient(90deg, var(--gray-200), var(--gray-300));
+  }
+  .mobile-branch-grid .mobile-node {
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding: 0.85rem 0.85rem 0.9rem;
+  }
+  .mobile-merge { margin-top: 0.1rem; }
+  .mobile-node[data-status="active"] {
+    border-color: rgba(16, 24, 40, 0.2);
+    box-shadow: 0 10px 28px -14px rgba(16,24,40,.28);
+  }
+  .mobile-link[data-link-status="active"] {
+    background: linear-gradient(180deg, var(--gray-900), var(--gray-700));
+  }
+  .mobile-link[data-link-status="done"] {
+    background: linear-gradient(180deg, var(--gray-400), var(--gray-300));
+  }
 
   /* Stats */
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -768,4 +832,7 @@ tr.sig-mid td.cell-pval { color: var(--gray-700); font-weight: 500; }
   .tab-btn { font-size: 10px; gap: 0.25rem; }
   .page-header h2 { font-size: 1.05rem; }
   textarea { min-height: 5rem; }
+  .mobile-branch-grid { grid-template-columns: 1fr; }
+  .mobile-branch-group { padding: 0.7rem 0.7rem 0.25rem; }
+  .mobile-node { padding: 0.85rem 0.85rem 0.9rem; }
 }

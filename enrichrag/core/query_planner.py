@@ -361,7 +361,7 @@ class QueryPlanner:
             model=model,
             temperature=0,
             api_key=api_key,
-        ).with_structured_output(QueryPlan)
+        ).with_structured_output(QueryPlan, method="function_calling")
 
         prompt = (
             "You are a biomedical search strategist. Refine the following search plan "

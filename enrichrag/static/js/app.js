@@ -38,9 +38,15 @@ function showToast(msg, ms = 2500) {
 
 /* ---- Pipeline State ---- */
 
+function getPipelineNodeElements(nodeId) {
+  return [
+    document.getElementById('node-' + nodeId),
+    document.getElementById('node-' + nodeId + '-mobile'),
+  ].filter(Boolean);
+}
+
 function setPipelineState(nodeId, status) {
-  const el = document.getElementById('node-' + nodeId);
-  if (el) {
+  getPipelineNodeElements(nodeId).forEach((el) => {
     el.dataset.status = status;
     const circle = el.querySelector('.node-circle');
     if (status === 'done') {
@@ -49,9 +55,24 @@ function setPipelineState(nodeId, status) {
       circle.innerHTML = '<i data-lucide="loader-2" style="width:18px;height:18px"></i>';
     } else if (status === 'cancelled') {
       circle.innerHTML = '<i data-lucide="minus" style="width:18px;height:18px"></i>';
+    } else if (status === 'failed') {
+      circle.innerHTML = '<i data-lucide="alert-triangle" style="width:18px;height:18px"></i>';
+    } else if (status === 'timeout') {
+      circle.innerHTML = '<i data-lucide="clock-3" style="width:18px;height:18px"></i>';
+    } else {
+      const fallbackIcons = {
+        enrichment: 'network',
+        planning: 'route',
+        search: 'globe',
+        pubmed: 'book-open',
+        extraction: 'scan-search',
+        llm: 'brain-circuit',
+        done: 'file-text',
+      };
+      circle.innerHTML = `<i data-lucide="${fallbackIcons[nodeId] || 'circle'}" style="width:18px;height:18px"></i>`;
     }
-    lucide.createIcons();
-  }
+  });
+  lucide.createIcons();
 }
 
 function setLineState(lineId, status) {
@@ -64,18 +85,20 @@ const NODE_TIMEOUT_MS = 600000;
 
 function resetPipeline() {
   ['enrichment','planning','search','pubmed','extraction','llm','done'].forEach(n => {
-    const el = document.getElementById('node-' + n);
-    if (el) {
+    getPipelineNodeElements(n).forEach((el) => {
       el.dataset.status = 'pending';
       const timer = el.querySelector('.node-timer');
       if (timer) timer.textContent = '';
-      // Reset subtitle to default
       const sub = el.querySelector('.node-sub');
       if (sub) sub.textContent = _defaultSubs[n] || '';
-    }
+    });
     if (_nodeTimers[n]) { clearInterval(_nodeTimers[n].interval); delete _nodeTimers[n]; }
   });
   document.querySelectorAll('.pipe-line').forEach(l => l.className = 'pipe-line pending');
+  document.querySelectorAll('.mobile-link').forEach((link) => {
+    link.dataset.linkStatus = 'pending';
+  });
+  lucide.createIcons();
 }
 
 const _defaultSubs = {
@@ -90,19 +113,27 @@ const _defaultSubs = {
 
 function startNodeTimer(name) {
   if (_nodeTimers[name]) return;
-  const el = document.getElementById('node-' + name);
-  const timerEl = el ? el.querySelector('.node-timer') : null;
-  if (!timerEl) return;
+  const nodes = getPipelineNodeElements(name);
+  if (!nodes.length) return;
   const start = Date.now();
-  timerEl.textContent = '0.0s';
+  nodes.forEach((el) => {
+    const timerEl = el.querySelector('.node-timer');
+    if (timerEl) timerEl.textContent = '0.0s';
+  });
   _nodeTimers[name] = {
     start,
     interval: setInterval(() => {
       const elapsed = Date.now() - start;
-      timerEl.textContent = (elapsed / 1000).toFixed(1) + 's';
-      if (elapsed >= NODE_TIMEOUT_MS && el.dataset.status === 'active') {
-        el.dataset.status = 'timeout';
-        timerEl.textContent = 'timeout';
+      nodes.forEach((el) => {
+        const timerEl = el.querySelector('.node-timer');
+        if (timerEl) timerEl.textContent = (elapsed / 1000).toFixed(1) + 's';
+      });
+      if (elapsed >= NODE_TIMEOUT_MS && nodes.some((el) => el.dataset.status === 'active')) {
+        nodes.forEach((el) => {
+          el.dataset.status = 'timeout';
+          const timerEl = el.querySelector('.node-timer');
+          if (timerEl) timerEl.textContent = 'timeout';
+        });
         clearInterval(_nodeTimers[name].interval);
       }
     }, 100),
@@ -113,24 +144,49 @@ function stopNodeTimer(name) {
   if (!_nodeTimers[name]) return;
   clearInterval(_nodeTimers[name].interval);
   const elapsed = Date.now() - _nodeTimers[name].start;
-  const el = document.getElementById('node-' + name);
-  const timerEl = el ? el.querySelector('.node-timer') : null;
-  if (timerEl) timerEl.textContent = (elapsed / 1000).toFixed(1) + 's';
+  getPipelineNodeElements(name).forEach((el) => {
+    const timerEl = el.querySelector('.node-timer');
+    if (timerEl) timerEl.textContent = (elapsed / 1000).toFixed(1) + 's';
+  });
   delete _nodeTimers[name];
 }
 
 function failNodeTimer(name) {
   if (_nodeTimers[name]) clearInterval(_nodeTimers[name].interval);
-  const el = document.getElementById('node-' + name);
-  if (el) el.dataset.status = 'failed';
-  const timerEl = el ? el.querySelector('.node-timer') : null;
-  if (timerEl && _nodeTimers[name]) {
-    const elapsed = Date.now() - _nodeTimers[name].start;
-    timerEl.textContent = (elapsed / 1000).toFixed(1) + 's — failed';
-  } else if (timerEl) {
-    timerEl.textContent = 'failed';
-  }
+  const nodes = getPipelineNodeElements(name);
+  nodes.forEach((el) => {
+    el.dataset.status = 'failed';
+    const timerEl = el.querySelector('.node-timer');
+    if (timerEl && _nodeTimers[name]) {
+      const elapsed = Date.now() - _nodeTimers[name].start;
+      timerEl.textContent = (elapsed / 1000).toFixed(1) + 's — failed';
+    } else if (timerEl) {
+      timerEl.textContent = 'failed';
+    }
+  });
   if (_nodeTimers[name]) delete _nodeTimers[name];
+  lucide.createIcons();
+}
+
+function setMobileLinks(statusMap = {}) {
+  const mapping = {
+    enrichment: ['node-enrichment-mobile'],
+    planning: ['node-planning-mobile'],
+    search: ['node-search-mobile'],
+    pubmed: ['node-pubmed-mobile'],
+    extraction: ['node-extraction-mobile'],
+    llm: ['node-llm-mobile'],
+    done: ['node-done-mobile'],
+  };
+  Object.entries(mapping).forEach(([key, ids]) => {
+    ids.forEach((id) => {
+      const node = document.getElementById(id);
+      if (!node) return;
+      const step = node.closest('.mobile-step');
+      const link = step ? step.querySelector('.mobile-link') : null;
+      if (link && statusMap[key]) link.dataset.linkStatus = statusMap[key];
+    });
+  });
 }
 
 function updatePipelineFromEvent(step, message) {
@@ -142,43 +198,53 @@ function updatePipelineFromEvent(step, message) {
   if (step === 'enrichment' && message.includes('Running')) {
     setPipelineState('enrichment', 'active');
     startNodeTimer('enrichment');
+    setMobileLinks({ enrichment: 'active' });
   } else if (step === 'enrichment' && message.includes('complete')) {
     setPipelineState('enrichment', 'done');
     stopNodeTimer('enrichment');
     setLineState('line-0-1', 'active');
+    setMobileLinks({ enrichment: 'done', planning: 'active' });
   } else if (step === 'enrichment' && isFail) {
     failNodeTimer('enrichment');
   } else if (step === 'planning' && message.includes('Generating')) {
     setPipelineState('planning', 'active');
     startNodeTimer('planning');
     setLineState('line-0-1', 'done');
+    setMobileLinks({ planning: 'active' });
   } else if (step === 'planning' && !isFail) {
     setPipelineState('planning', 'done');
     stopNodeTimer('planning');
     setLineState('line-1-2a', 'active');
     setLineState('line-1-2b', 'active');
+    setMobileLinks({ planning: 'done', search: 'active', pubmed: 'active' });
   } else if (step === 'planning' && isFail) {
     failNodeTimer('planning');
   } else if (step === 'search' && (message.includes('Searching') || message.includes('Skipping web'))) {
     if (message.includes('Skipping')) {
       setPipelineState('search', 'done');
+      setMobileLinks({ search: 'done' });
     } else {
       setPipelineState('search', 'active');
       startNodeTimer('search');
+      setMobileLinks({ search: 'active' });
     }
     setPipelineState('pubmed', 'active');
     startNodeTimer('pubmed');
+    setMobileLinks({ pubmed: 'active' });
   } else if (step === 'search' && message.includes('Found')) {
     setPipelineState('search', 'done');
     stopNodeTimer('search');
+    setMobileLinks({ search: 'done' });
   } else if (step === 'search' && isFail) {
     failNodeTimer('search');
   } else if (step === 'pubmed' && message.includes('Fetching')) {
     setPipelineState('pubmed', 'active');
     startNodeTimer('pubmed');
+    setMobileLinks({ pubmed: 'active' });
   } else if (step === 'pubmed' && (message.includes('Fetched') || message.includes('Skipping'))) {
     setPipelineState('pubmed', 'done');
     stopNodeTimer('pubmed');
+    setMobileLinks({ pubmed: 'done' });
   } else if (step === 'pubmed' && isFail) {
     failNodeTimer('pubmed');
   } else if (step === 'search' && message.includes('All searches')) {
@@ -190,6 +256,7 @@ function updatePipelineFromEvent(step, message) {
     setLineState('line-1-2b', 'done');
     setLineState('line-2a-3', 'active');
     setLineState('line-2b-3', 'active');
+    setMobileLinks({ search: 'done', pubmed: 'done', extraction: 'active' });
   } else if (step === 'extraction' && message.includes('Extracting')) {
     setPipelineState('extraction', 'active');
     startNodeTimer('extraction');
@@ -198,8 +265,10 @@ function updatePipelineFromEvent(step, message) {
     // Show progress in subtitle (e.g. "3/10")
     const match = message.match(/(\d+)\/(\d+)/);
     if (match) {
-      const sub = document.querySelector('#node-extraction .node-sub');
-      if (sub) sub.textContent = `${match[1]} / ${match[2]}`;
+      getPipelineNodeElements('extraction').forEach((el) => {
+        const sub = el.querySelector('.node-sub');
+        if (sub) sub.textContent = `${match[1]} / ${match[2]}`;
+      });
     }
   } else if (step === 'extraction' && (message.includes('Extracted') || message.includes('Skipping'))) {
     setPipelineState('extraction', 'done');
@@ -208,9 +277,12 @@ function updatePipelineFromEvent(step, message) {
     // Show final count
     const match = message.match(/(\d+) relations/);
     if (match) {
-      const sub = document.querySelector('#node-extraction .node-sub');
-      if (sub) sub.textContent = `${match[1]} relations`;
+      getPipelineNodeElements('extraction').forEach((el) => {
+        const sub = el.querySelector('.node-sub');
+        if (sub) sub.textContent = `${match[1]} relations`;
+      });
     }
+    setMobileLinks({ extraction: 'done', llm: 'active' });
   } else if (step === 'extraction' && isFail) {
     failNodeTimer('extraction');
     setLineState('line-3-4', 'active');
@@ -220,10 +292,12 @@ function updatePipelineFromEvent(step, message) {
     setLineState('line-3-4', 'done');
     setPipelineState('llm', 'active');
     startNodeTimer('llm');
+    setMobileLinks({ extraction: 'done', llm: 'active' });
   } else if (step === 'llm' && (message.includes('generated') || message.includes('Skipping'))) {
     setPipelineState('llm', 'done');
     stopNodeTimer('llm');
     setLineState('line-4-5', 'active');
+    setMobileLinks({ llm: 'done', done: 'active' });
   } else if (step === 'llm' && isFail) {
     failNodeTimer('llm');
     setLineState('line-4-5', 'active');
@@ -231,6 +305,7 @@ function updatePipelineFromEvent(step, message) {
     setPipelineState('done', 'done');
     stopNodeTimer('done');
     setLineState('line-4-5', 'done');
+    setMobileLinks({ done: 'done' });
   }
 }
 
@@ -302,7 +377,7 @@ function getPipelineHTML() {
         <p id="loadingMsg">Initializing pipeline...</p>
       </div>
       <div class="pipeline-canvas">
-        <svg viewBox="0 0 1020 280" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0">
+        <svg class="pipeline-desktop-map" viewBox="0 0 1020 280" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0">
           <path id="line-0-1" class="pipe-line pending" d="M 75 140 L 210 140" fill="none"/>
           <path id="line-1-2a" class="pipe-line pending" d="M 210 140 C 300 140, 300 65, 390 65" fill="none"/>
           <path id="line-1-2b" class="pipe-line pending" d="M 210 140 C 300 140, 300 215, 390 215" fill="none"/>
@@ -339,6 +414,65 @@ function getPipelineHTML() {
           <div class="node-circle"><i data-lucide="file-text"></i></div>
           <div class="node-label"><div class="node-title">Report</div><div class="node-sub">Structuring</div><div class="node-timer"></div></div>
         </div>
+        <div class="pipeline-mobile-rail">
+          <div class="mobile-step" data-branch="single">
+            <div class="mobile-link" data-link-status="pending"></div>
+            <div class="pipe-node mobile-node" data-status="pending" id="node-enrichment-mobile">
+              <div class="node-circle"><i data-lucide="network"></i></div>
+              <div class="node-label"><div class="node-title">Enrichment</div><div class="node-sub">GO & KEGG</div><div class="node-timer"></div></div>
+            </div>
+          </div>
+          <div class="mobile-step" data-branch="single">
+            <div class="mobile-link" data-link-status="pending"></div>
+            <div class="pipe-node mobile-node" data-status="pending" id="node-planning-mobile">
+              <div class="node-circle"><i data-lucide="route"></i></div>
+              <div class="node-label"><div class="node-title">Planning</div><div class="node-sub">Query Strategy</div><div class="node-timer"></div></div>
+            </div>
+          </div>
+          <div class="mobile-branch-group">
+            <div class="mobile-branch-head">
+              <span class="branch-kicker">Parallel Retrieval</span>
+              <span class="branch-rule"></span>
+            </div>
+            <div class="mobile-branch-grid">
+              <div class="mobile-step" data-branch="left">
+                <div class="mobile-link" data-link-status="pending"></div>
+                <div class="pipe-node mobile-node" data-status="pending" id="node-search-mobile">
+                  <div class="node-circle"><i data-lucide="globe"></i></div>
+                  <div class="node-label"><div class="node-title">Web Search</div><div class="node-sub">Tavily API</div><div class="node-timer"></div></div>
+                </div>
+              </div>
+              <div class="mobile-step" data-branch="right">
+                <div class="mobile-link" data-link-status="pending"></div>
+                <div class="pipe-node mobile-node" data-status="pending" id="node-pubmed-mobile">
+                  <div class="node-circle"><i data-lucide="book-open"></i></div>
+                  <div class="node-label"><div class="node-title">PubMed</div><div class="node-sub">Entrez API</div><div class="node-timer"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mobile-step mobile-merge" data-branch="single">
+            <div class="mobile-link" data-link-status="pending"></div>
+            <div class="pipe-node mobile-node" data-status="pending" id="node-extraction-mobile">
+              <div class="node-circle"><i data-lucide="scan-search"></i></div>
+              <div class="node-label"><div class="node-title">Extraction</div><div class="node-sub">Relations</div><div class="node-timer"></div></div>
+            </div>
+          </div>
+          <div class="mobile-step" data-branch="single">
+            <div class="mobile-link" data-link-status="pending"></div>
+            <div class="pipe-node mobile-node" data-status="pending" id="node-llm-mobile">
+              <div class="node-circle"><i data-lucide="brain-circuit"></i></div>
+              <div class="node-label"><div class="node-title">Synthesis</div><div class="node-sub">LLM Gen</div><div class="node-timer"></div></div>
+            </div>
+          </div>
+          <div class="mobile-step" data-branch="single">
+            <div class="mobile-link" data-link-status="pending"></div>
+            <div class="pipe-node mobile-node" data-status="pending" id="node-done-mobile">
+              <div class="node-circle"><i data-lucide="file-text"></i></div>
+              <div class="node-label"><div class="node-title">Report</div><div class="node-sub">Structuring</div><div class="node-timer"></div></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -366,15 +500,15 @@ function runAnalysis() {
   document.getElementById('resultTabs').innerHTML =
     `<button class="tab-btn active" data-tab="pipeline" onclick="switchTab('pipeline')"><i data-lucide="activity"></i> Pipeline</button>` +
     `<button class="tab-btn" data-tab="enrichment" onclick="switchTab('enrichment')"><i data-lucide="bar-chart-3"></i> Enrichment</button>` +
-    `<button class="tab-btn" data-tab="network" onclick="switchTab('network')"><i data-lucide="share-2"></i> Network</button>` +
     `<button class="tab-btn" data-tab="sources" onclick="switchTab('sources')"><i data-lucide="book-open"></i> Sources</button>` +
+    `<button class="tab-btn" data-tab="network" onclick="switchTab('network')"><i data-lucide="share-2"></i> Network</button>` +
     `<button class="tab-btn" data-tab="report" onclick="switchTab('report')"><i data-lucide="file-text"></i> Insight Report</button>`;
 
   document.getElementById('tabPanels').innerHTML =
     `<div class="tab-panel active" id="panel-pipeline">${getPipelineHTML()}</div>` +
     `<div class="tab-panel" id="panel-enrichment"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>` +
-    `<div class="tab-panel" id="panel-network"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>` +
     `<div class="tab-panel" id="panel-sources"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>` +
+    `<div class="tab-panel" id="panel-network"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>` +
     `<div class="tab-panel" id="panel-report"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>`;
 
   document.getElementById('navResults').disabled = false;
@@ -437,8 +571,7 @@ function cancelAnalysis() {
 
   // Mark active nodes as cancelled
   ['enrichment','planning','search','pubmed','extraction','llm','done'].forEach(n => {
-    const el = document.getElementById('node-' + n);
-    if (el && el.dataset.status === 'active') {
+    if (getPipelineNodeElements(n).some((el) => el.dataset.status === 'active')) {
       setPipelineState(n, 'cancelled');
       stopNodeTimer(n);
     }
@@ -513,8 +646,8 @@ function renderResultTabs(data) {
   const mainTabs = [
     { key: 'pipeline', label: 'Pipeline', icon: 'activity', count: null },
     { key: 'enrichment', label: 'Enrichment', icon: 'bar-chart-3', count: goCount + keggCount },
-    { key: 'network', label: 'Network', icon: 'share-2', count: graphData.nodes.length },
     { key: 'sources', label: 'Sources', icon: 'book-open', count: totalSources },
+    { key: 'network', label: 'Network', icon: 'share-2', count: graphData.nodes.length },
     { key: 'report', label: 'Insight Report', icon: 'file-text', count: null },
   ];
 

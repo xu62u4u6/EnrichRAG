@@ -3,7 +3,7 @@ from typing import List, Literal, Optional
 import pandas as pd
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import load_prompt
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from enrichrag.core.extraction_cache import ExtractionCache
 from enrichrag.logging import logger
@@ -32,6 +32,66 @@ class BioRelation(BaseModel):
         "associate", "treat", "cause", "biomarker", "interact",
     ] = Field(description="Relation type between source and target")
     evidence: str = Field(description="Supporting sentence from the source text")
+
+    @field_validator("relation", mode="before")
+    @classmethod
+    def normalize_relation(cls, value: str) -> str:
+        """Map near-miss LLM labels into the supported relation taxonomy."""
+        if not isinstance(value, str):
+            return "associate"
+
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+        relation_map = {
+            "impact": "associate",
+            "target": "associate",
+            "targets": "associate",
+            "regulate": "associate",
+            "regulates": "associate",
+            "regulation": "associate",
+            "modulate": "associate",
+            "modulates": "associate",
+            "mediate": "associate",
+            "mediates": "associate",
+            "inhibition": "inhibit",
+            "inhibits": "inhibit",
+            "suppresses": "inhibit",
+            "suppression": "inhibit",
+            "activation": "activate",
+            "activates": "activate",
+            "stimulate": "activate",
+            "stimulates": "activate",
+            "increase": "upregulate",
+            "increases": "upregulate",
+            "induce": "upregulate",
+            "induces": "upregulate",
+            "decrease": "downregulate",
+            "decreases": "downregulate",
+            "reduce": "downregulate",
+            "reduces": "downregulate",
+            "marker": "biomarker",
+            "predict": "biomarker",
+            "predicts": "biomarker",
+            "bind": "interact",
+            "binds": "interact",
+            "binding": "interact",
+            "interaction": "interact",
+            "interacts": "interact",
+            "associated_with": "associate",
+            "correlate": "associate",
+            "correlates": "associate",
+        }
+        allowed = {
+            "upregulate",
+            "downregulate",
+            "inhibit",
+            "activate",
+            "associate",
+            "treat",
+            "cause",
+            "biomarker",
+            "interact",
+        }
+        return relation_map.get(normalized, normalized if normalized in allowed else "associate")
 
 
 class ExtractionResult(BaseModel):
@@ -67,7 +127,10 @@ class RelationExtractor:
                 "..", "prompts", "templates", "get_genes_relation.yaml",
             )
         self.prompt_template = load_prompt(template_path)
-        self.structured_llm = llm.with_structured_output(ExtractionResult)
+        self.structured_llm = llm.with_structured_output(
+            ExtractionResult,
+            method="function_calling",
+        )
         self.chain = self.prompt_template | self.structured_llm
         self.raw_results: List[ExtractionResult] = []
 

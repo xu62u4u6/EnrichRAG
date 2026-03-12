@@ -15,6 +15,7 @@ from enrichrag.core.pubmed import PubMedFetcher
 from enrichrag.core.query_planner import QueryPlan, QueryPlanner
 from enrichrag.core.relation_extractor import RelationExtractor
 from enrichrag.core.web_search import WebSearcher
+from enrichrag.knowledge_graph import KnowledgeGraph
 from enrichrag.logging import logger
 from enrichrag.prompts.generator import PromptGenerator
 from enrichrag.settings import settings
@@ -116,7 +117,7 @@ def run_pipeline(
     genes: List[str],
     disease: str = "cancer",
     pval_threshold: float = 0.05,
-    on_progress: Optional[Callable[[str, str], None]] = None,
+    on_progress: Optional[Callable[..., None]] = None,
 ) -> Dict:
     """Run the full enrichment + LLM analysis pipeline.
 
@@ -171,7 +172,14 @@ def run_pipeline(
 
     # 2. Parallel Search (Web + PubMed)
     _progress("search", "Searching web and PubMed in parallel...")
-    web_context, web_sources, pubmed_context, pubmed_sources, pubmed_df = _parallel_search(
+    (
+        web_context,
+        web_sources,
+        pubmed_context,
+        pubmed_sources,
+        pubmed_df,
+        kg_relations_df,
+    ) = _parallel_search(
         genes, disease, enricher.filtered_results, _progress,
         query_plan=query_plan,
     )
@@ -202,6 +210,16 @@ def run_pipeline(
             _progress("extraction", f"Relation extraction failed: {e}")
     else:
         _progress("extraction", "Skipping relation extraction.")
+
+    if kg_relations_df is not None and not kg_relations_df.empty:
+        relations_df = pd.concat([relations_df, kg_relations_df], ignore_index=True)
+        relations_df = relations_df.drop_duplicates(
+            subset=["source", "target", "relation", "pmid"],
+            keep="first",
+        )
+        _progress("knowledge_graph", f"Merged {len(kg_relations_df)} local KG relations.")
+    else:
+        _progress("knowledge_graph", "No local KG relations found.")
 
     # 4. LLM
     insight = ""
@@ -287,14 +305,14 @@ def _parallel_search(
     enrichment_results: Dict,
     _progress: Callable,
     query_plan: Optional[QueryPlan] = None,
-) -> Tuple[str, list, str, list, Optional[pd.DataFrame]]:
-    """Run web search and PubMed fetch in parallel threads."""
-
+) -> Tuple[str, list, str, list, Optional[pd.DataFrame], pd.DataFrame]:
+    """Run web search, PubMed fetch, and local KG lookup in parallel threads."""
     web_context = ""
     web_sources: list = []
     pubmed_context = ""
     pubmed_sources: list = []
     pubmed_df: Optional[pd.DataFrame] = None
+    kg_relations_df = pd.DataFrame()
 
     def _web_search() -> Tuple[str, list]:
         if not settings.tavily_api_key:
@@ -352,15 +370,36 @@ def _parallel_search(
             _progress("pubmed", f"PubMed fetch failed: {e}")
             return "", [], None
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    def _kg_search() -> pd.DataFrame:
+        if not settings.kg_enabled:
+            _progress("knowledge_graph", "Skipping local KG lookup.")
+            return pd.DataFrame()
+        try:
+            kg = KnowledgeGraph(settings.kg_db_path)
+            if not kg.is_ready():
+                _progress("knowledge_graph", "Local KG database is empty.")
+                return pd.DataFrame()
+            _progress("knowledge_graph", "Querying local knowledge graph...")
+            df = kg.lookup(genes, disease=disease)
+            _progress("knowledge_graph", f"Found {len(df)} local KG relations.")
+            return df
+        except Exception as e:
+            logger.error(f"Local KG lookup failed: {e}")
+            _progress("knowledge_graph", f"Local KG lookup failed: {e}")
+            return pd.DataFrame()
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
         web_future = executor.submit(_web_search)
         pubmed_future = executor.submit(_pubmed_search)
+        kg_future = executor.submit(_kg_search)
 
-        for future in as_completed([web_future, pubmed_future]):
+        for future in as_completed([web_future, pubmed_future, kg_future]):
             if future is web_future:
                 web_context, web_sources = future.result()
-            else:
+            elif future is pubmed_future:
                 pubmed_context, pubmed_sources, pubmed_df = future.result()
+            else:
+                kg_relations_df = future.result()
 
     _progress("search", "All searches complete.", data={
         "sources": {
@@ -368,7 +407,7 @@ def _parallel_search(
             "pubmed": pubmed_sources,
         },
     })
-    return web_context, web_sources, pubmed_context, pubmed_sources, pubmed_df
+    return web_context, web_sources, pubmed_context, pubmed_sources, pubmed_df, kg_relations_df
 
 
 def save_result(result: Dict, output: Path) -> None:
