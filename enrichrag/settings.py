@@ -1,5 +1,7 @@
 """Centralized settings via pydantic-settings."""
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +17,9 @@ class Settings(BaseSettings):
     server_port: int = 9001
     url_prefix: str = ""
     query_planning_llm_refine: bool = True
+    kg_enabled: bool = True
+    kg_db_path: str = str(Path("~/.enrichrag/knowledge_graph/data/knowledge_graph.db").expanduser())
+    kg_data_dir: str = str(Path("~/.enrichrag/knowledge_graph/data").expanduser())
 
 
 settings = Settings()

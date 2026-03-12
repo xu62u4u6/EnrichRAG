@@ -1,0 +1,5 @@
+downloads/
+*.db
+# Keep processed TSVs for reproducibility
+!processed/
+!processed/gene_id_map.tsv

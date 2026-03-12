@@ -2,9 +2,16 @@
 
 
 def test_import_core():
-    from enrichrag.core import GeneEnricher, PubMedFetcher, RelationExtractor, WebSearcher
+    from enrichrag.core import (
+        GeneEnricher,
+        KnowledgeGraph,
+        PubMedFetcher,
+        RelationExtractor,
+        WebSearcher,
+    )
 
     assert GeneEnricher is not None
+    assert KnowledgeGraph is not None
     assert PubMedFetcher is not None
     assert RelationExtractor is not None
     assert WebSearcher is not None
