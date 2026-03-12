@@ -1,5 +1,7 @@
 """Pydantic models for API layer."""
 
+from typing import List
+
 from pydantic import BaseModel, Field
 
 
@@ -11,3 +13,41 @@ class AnalyzeRequest(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = "ok"
+
+
+class ValidateGenesRequest(BaseModel):
+    genes: str = Field(..., description="Comma/space/newline-separated gene symbols")
+
+
+class GeneValidationRow(BaseModel):
+    input_gene: str
+    normalized_gene: str = ""
+    status: str
+    source: str = ""
+    gene_id: str = ""
+    official_name: str = ""
+    description: str = ""
+
+
+class ValidateGenesResponse(BaseModel):
+    normalized_genes: List[str]
+    accepted: List[GeneValidationRow]
+    remapped: List[GeneValidationRow]
+    rejected: List[GeneValidationRow]
+    rows: List[GeneValidationRow]
+    summary: dict
+
+
+class GeneProfileResponse(BaseModel):
+    canonical_symbol: str
+    gene_id: str = ""
+    official_symbol: str = ""
+    official_full_name: str = ""
+    synonyms: str = ""
+    description: str = ""
+    type_of_gene: str = ""
+    chromosome: str = ""
+    map_location: str = ""
+    dbxrefs: str = ""
+    modification_date: str = ""
+    tax_id: int = 9606

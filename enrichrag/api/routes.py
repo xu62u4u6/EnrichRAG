@@ -6,9 +6,10 @@ import math
 import re
 from queue import Empty, Queue
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from enrichrag.core.gene_validation import GeneValidationService
 from enrichrag.core.pipeline import run_pipeline
 
 router = APIRouter()
@@ -40,13 +41,30 @@ async def health():
     return {"status": "ok"}
 
 
+@router.post("/api/genes/validate")
+async def validate_genes(payload: dict):
+    service = GeneValidationService()
+    genes = _parse_genes(payload.get("genes", ""))
+    return _json_safe(service.validate(genes))
+
+
+@router.get("/api/genes/{symbol}")
+async def gene_profile(symbol: str):
+    service = GeneValidationService()
+    profile = service.get_profile(symbol)
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"Gene profile not found: {symbol}")
+    return _json_safe(profile)
+
+
 @router.get("/api/analyze/stream")
 async def analyze_stream(
     genes: str = Query(..., description="Gene symbols"),
     disease: str = Query("cancer"),
     pval: float = Query(0.05, ge=0.0, le=1.0),
 ):
-    gene_list = _parse_genes(genes)
+    service = GeneValidationService()
+    gene_list = service.normalize_genes(_parse_genes(genes))
     if not gene_list:
         return StreamingResponse(
             iter([_sse_payload({"event": "error", "message": "No genes"})]),

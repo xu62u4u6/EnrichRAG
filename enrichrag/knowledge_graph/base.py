@@ -37,6 +37,21 @@ class KnowledgeGraphDB:
                     source TEXT DEFAULT ''
                 );
 
+                CREATE TABLE IF NOT EXISTS gene_profiles (
+                    canonical_symbol TEXT PRIMARY KEY,
+                    gene_id TEXT DEFAULT '',
+                    official_symbol TEXT DEFAULT '',
+                    official_full_name TEXT DEFAULT '',
+                    synonyms TEXT DEFAULT '',
+                    description TEXT DEFAULT '',
+                    type_of_gene TEXT DEFAULT '',
+                    chromosome TEXT DEFAULT '',
+                    map_location TEXT DEFAULT '',
+                    dbxrefs TEXT DEFAULT '',
+                    modification_date TEXT DEFAULT '',
+                    tax_id INTEGER DEFAULT 9606
+                );
+
                 CREATE TABLE IF NOT EXISTS edges (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     source TEXT NOT NULL,
@@ -61,5 +76,7 @@ class KnowledgeGraphDB:
                     ON edges(source_db);
                 CREATE INDEX IF NOT EXISTS idx_gene_id_map_symbol
                     ON gene_id_map(canonical_symbol);
+                CREATE INDEX IF NOT EXISTS idx_gene_profiles_gene_id
+                    ON gene_profiles(gene_id);
                 """
             )
