@@ -36,59 +36,74 @@ class KnowledgeGraph:
         # Use resolved symbol if found, otherwise keep original
         return list({resolved.get(g, g) for g in genes})
 
+    COLUMNS = [
+        "source", "source_type", "target", "target_type",
+        "relation", "evidence", "pmid", "source_db",
+    ]
+
     def lookup(
         self,
         genes: Iterable[str],
         disease: str | None = None,
         limit: int = 500,
+        per_source_limit: int = 200,
     ) -> pd.DataFrame:
         gene_list = sorted({gene.strip() for gene in genes if gene and gene.strip()})
         if not gene_list:
-            return pd.DataFrame(
-                columns=[
-                    "source",
-                    "source_type",
-                    "target",
-                    "target_type",
-                    "relation",
-                    "evidence",
-                    "pmid",
-                ]
-            )
+            return pd.DataFrame(columns=self.COLUMNS)
 
         # Resolve to canonical symbols
         canonical = self._resolve_symbols(gene_list)
 
+        # Take top N per source_db so no single source dominates
         placeholders = ",".join("?" for _ in canonical)
-        params = list(canonical) + list(canonical) + [limit]
+        params = list(canonical) + list(canonical) + [per_source_limit]
         sql = f"""
-            SELECT
-                source,
-                source_type,
-                target,
-                target_type,
-                relation,
-                evidence,
-                pmid
-            FROM edges
-            WHERE source IN ({placeholders})
-               OR target IN ({placeholders})
-            ORDER BY score DESC, id ASC
-            LIMIT ?
+            SELECT source, source_type, target, target_type,
+                   relation, evidence, pmid, source_db
+            FROM (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY source_db
+                           ORDER BY score DESC, id ASC
+                       ) AS rn
+                FROM edges
+                WHERE source IN ({placeholders})
+                   OR target IN ({placeholders})
+            )
+            WHERE rn <= ?
         """
 
         df = self._query(sql, params)
+        dedup_cols = ["source", "target", "relation", "pmid", "source_db"]
+        df = df.drop_duplicates(subset=dedup_cols, keep="first")
+
         if disease:
             disease_lower = disease.lower()
             disease_hits = df["target"].astype(str).str.lower().eq(disease_lower)
             disease_hits |= df["source"].astype(str).str.lower().eq(disease_lower)
             if disease_hits.any():
-                prioritized = pd.concat([df[disease_hits], df[~disease_hits]], ignore_index=True)
-                return prioritized.drop_duplicates(
-                    subset=["source", "target", "relation", "pmid"],
-                    keep="first",
+                df = pd.concat([df[disease_hits], df[~disease_hits]], ignore_index=True)
+
+        # Balanced sampling: take up to limit/n_sources per source, then fill remainder
+        source_dbs = df["source_db"].unique()
+        n_sources = len(source_dbs)
+        if n_sources > 0 and len(df) > limit:
+            per_src = max(limit // n_sources, 1)
+            parts = []
+            for sdb in source_dbs:
+                parts.append(df[df["source_db"] == sdb].head(per_src))
+            result = pd.concat(parts, ignore_index=True)
+            # Fill remaining quota from leftover rows
+            if len(result) < limit:
+                used_idx = result.index
+                remaining = df[~df.index.isin(used_idx)]
+                result = pd.concat(
+                    [result, remaining.head(limit - len(result))],
+                    ignore_index=True,
                 )
-        return df.drop_duplicates(subset=["source", "target", "relation", "pmid"], keep="first")
+            return result
+        return df.head(limit)
 
     def _query(self, sql: str, params: list[object]) -> pd.DataFrame:
         with self.db.connect() as conn:
