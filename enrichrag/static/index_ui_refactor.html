@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>enrichRAG</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/ui_refactor.css">
+  <script>window.__API_PREFIX = '';</script>
+</head>
+<body class="ui-refactor-body">
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="icon"><i data-lucide="terminal"></i></div>
+    <div>
+      <h1>enrichRAG</h1>
+      <small>Literature Aug.</small>
+    </div>
+  </div>
+  <button class="mobile-toggle" id="mobileNavToggle" aria-label="Toggle menu">
+    <i data-lucide="menu"></i>
+  </button>
+  <nav>
+    <button class="nav-btn active" data-view="input">
+      <i data-lucide="dna"></i> New Analysis
+    </button>
+    <button class="nav-btn" data-view="results" disabled id="navResults">
+      <i data-lucide="layout-dashboard"></i> Results
+    </button>
+    <button class="nav-btn" data-view="history">
+      <i data-lucide="history"></i> History <span class="badge" id="historyBadge">0</span>
+    </button>
+  </nav>
+  <div class="sidebar-footer">
+    <span class="version">v0.2.0</span>
+    <a href="https://github.com" target="_blank" rel="noopener"><i data-lucide="github"></i></a>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="main">
+  <div class="main-inner">
+
+    <!-- VIEW: Input -->
+    <div class="view active" id="view-input">
+      <div class="page-header" style="margin-top:0.5rem">
+        <h2>Configure Analysis</h2>
+        <p>Provide gene sets to initiate the RAG enrichment pipeline.</p>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="form-group">
+            <label>Gene Symbols <span class="hint">(comma, space, or newline separated)</span></label>
+            <textarea id="genes" placeholder="BRCA1 BRCA2 RAD51 ATM...">BRCA1 BRCA2 RAD51 RAD52 ATM ATR CHEK1 CHEK2 MLH1 MSH2 MSH6 PMS2</textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0">
+              <label>Disease Context</label>
+              <input type="text" id="disease" value="cancer" placeholder="e.g. breast cancer">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>P-value Threshold</label>
+              <input type="number" id="pval" value="0.05" min="0" max="1" step="0.01">
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="hint-text"><i data-lucide="corner-down-left"></i> Press Enter to validate, or Ctrl+Enter to run</div>
+          <div class="validation-actions">
+            <button class="btn btn-secondary" id="validateBtn" type="button">
+              Validate Genes
+            </button>
+            <button class="btn btn-primary" id="runBtn" type="button" disabled>
+              Run Pipeline
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="validationSummary"></div>
+    </div>
+
+    <!-- VIEW: Results -->
+    <div class="view" id="view-results">
+      <div class="results-header">
+        <div class="status-badge" id="statusBadge"><i data-lucide="check-circle-2"></i> Analysis Complete</div>
+        <div class="title-row">
+          <div>
+            <h2 id="resultsTitle"></h2>
+            <p class="meta" id="resultsMeta"></p>
+          </div>
+          <div class="results-actions">
+            <button class="btn btn-danger" id="cancelBtn" type="button" style="display:none"><i data-lucide="square"></i> Stop</button>
+            <button class="btn btn-secondary" id="openChatBtn" type="button"><i data-lucide="message-square"></i> Ask Assistant</button>
+            <button class="btn btn-secondary" id="copyReportBtn" type="button"><i data-lucide="copy"></i> Copy</button>
+            <button class="btn btn-secondary" id="downloadJsonBtn" type="button"><i data-lucide="download"></i> JSON</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-grid" id="statsGrid"></div>
+
+      <div class="tabs" id="resultTabs"></div>
+      <div id="tabPanels"></div>
+    </div>
+
+    <!-- VIEW: History -->
+    <div class="view" id="view-history">
+      <div class="page-header">
+        <h2>Analysis History</h2>
+        <p>Review your past enrichment analyses.</p>
+      </div>
+      <div class="card" id="historyCard"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="drawer-backdrop" id="chatBackdrop"></div>
+<aside class="chat-drawer" id="chatDrawer" aria-hidden="true">
+  <div class="drawer-header">
+    <div>
+      <div class="drawer-kicker">Analysis QA</div>
+      <h3>EnrichRAG Assistant</h3>
+      <p class="chat-header-note">Context-aware analysis grounded in the current pipeline result.</p>
+    </div>
+    <button class="drawer-close" id="closeChatBtn" type="button" aria-label="Close chat">
+      <i data-lucide="x"></i>
+    </button>
+  </div>
+  <div class="chat-body" id="chatBody">
+    <div class="chat-message assistant chat-message-intro">
+      <div class="msg-content">
+        <p>Ask about the current analysis result, report, sources, or relations.</p>
+        <div class="chat-suggestions" id="chatSuggestions"></div>
+      </div>
+    </div>
+  </div>
+  <div class="chat-footer">
+    <form id="chatForm">
+      <input type="text" id="chatInput" placeholder="Ask about this analysis..." autocomplete="off">
+      <button type="submit" class="btn btn-primary btn-icon"><i data-lucide="send"></i></button>
+    </form>
+    <div class="chat-footer-meta">ENRICHRAG ASSISTANT V1.0</div>
+  </div>
+</aside>
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<aside class="gene-drawer" id="geneDrawer" aria-hidden="true">
+  <div class="drawer-header">
+    <div>
+      <div class="drawer-kicker">Gene Profile</div>
+      <h3 id="drawerTitle">Gene</h3>
+    </div>
+    <button class="drawer-close" id="closeGeneDrawerBtn" type="button" aria-label="Close gene info">
+      <i data-lucide="x"></i>
+    </button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<script src="js/ui_helpers.js"></script>
+<script src="js/ui_refactor.js"></script>
+</body>
+</html>

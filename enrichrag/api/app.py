@@ -24,17 +24,23 @@ app.mount(f"{prefix}/css", StaticFiles(directory=STATIC_DIR / "css"), name="css"
 app.mount(f"{prefix}/js", StaticFiles(directory=STATIC_DIR / "js"), name="js")
 
 
-@app.get(f"{prefix}/", response_class=HTMLResponse)
-async def index():
-    index_file = STATIC_DIR / "index.html"
-    html = index_file.read_text(encoding="utf-8")
-    # Inject API prefix so frontend JS knows where to call
+def _render_static_html(filename: str) -> HTMLResponse:
+    html = (STATIC_DIR / filename).read_text(encoding="utf-8")
     if prefix:
         html = html.replace(
             "window.__API_PREFIX = '';",
             f"window.__API_PREFIX = '{prefix}';",
         )
-        # Rewrite relative asset paths to include prefix
         html = html.replace('href="css/', f'href="{prefix}/css/')
         html = html.replace('src="js/', f'src="{prefix}/js/')
     return HTMLResponse(html)
+
+
+@app.get(f"{prefix}/", response_class=HTMLResponse)
+async def index():
+    return _render_static_html("index.html")
+
+
+@app.get(f"{prefix}/ui-refactor", response_class=HTMLResponse)
+async def index_ui_refactor():
+    return _render_static_html("index_ui_refactor.html")
