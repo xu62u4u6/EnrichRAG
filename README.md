@@ -123,10 +123,14 @@ flowchart TD
 | Feature | Description | Status |
 |---------|-------------|--------|
 | **Web Interface** | FastAPI + SSE streaming pipeline | ✅ Done |
+| **Gene Validation** | Canonical gene normalization with accepted / remapped / rejected summaries | ✅ Done |
 | **Pipeline Flowchart** | Animated node states with per-step timers | ✅ Done |
 | **Network Graph** | D3.js force-directed graph (zoom/pan, color-coded entities) | ✅ Done |
 | **Report Rendering** | Markdown → styled HTML with Lora serif typography | ✅ Done |
 | **Tabbed Results** | Enrichment tables, sources, relations, insights | ✅ Done |
+| **Analysis Chat Assistant** | Result-grounded chat drawer with streaming answers and suggested questions | ✅ Done |
+| **History Management** | Load, delete, and clear saved browser-side analysis history | ✅ Done |
+| **UI Refactor Sandbox** | Isolated `/ui-refactor` route for staged frontend redesign work | ✅ Done |
 
 ---
 
@@ -175,12 +179,23 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 ### v0.2 - Web UI & Pipeline Integration ✅
 
 - [x] **Web UI**: FastAPI backend + single-page frontend with SSE streaming
+- [x] **Gene Validation**: Normalize symbols before analysis with accepted / remapped / rejected feedback
 - [x] **Pipeline Orchestration**: Enrichment → parallel search (Web + PubMed) → relation extraction → LLM synthesis
 - [x] **Animated Pipeline Flowchart**: Real-time node status with elapsed timers, timeout/failure states
 - [x] **D3 Network Graph**: Force-directed visualization with zoom/pan, lazy rendering
 - [x] **Report Typography**: Lora serif font, wider layout, structured Markdown headings
 - [x] **Relations in LLM Prompt**: Extracted biomedical relations fed into analysis for richer interpretation
+- [x] **Result-grounded Chat Assistant**: Full-result chat context, streaming responses, and suggested follow-up questions
+- [x] **History Controls**: Browser-side saved analyses can be reloaded, deleted individually, or cleared
+- [x] **UI Refactor Sandbox**: `/ui-refactor` route for iterative frontend redesign without changing the main page
 - [x] **CLI Interface**: `enrichrag` command via Typer
+
+### Frontend Notes
+
+- Main application route: `/`
+- Frontend redesign sandbox: `/ui-refactor`
+- Analysis results are stored in browser local storage under `enrichrag_history_v2`
+- Chat answers are grounded in the current analysis result payload rather than an external database lookup
 
 ### v0.3 - Knowledge Graph: 已知關係 (Next)
 

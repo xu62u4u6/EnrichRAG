@@ -1567,6 +1567,7 @@ function resetChatSession() {
           description: 'Ask about the current analysis result, report, sources, or relations.',
           compact: true,
         })}
+        <div class="chat-welcome-rule"></div>
         <div class="chat-suggestions" id="chatSuggestions"></div>
       </div>
     </div>`;
@@ -1619,11 +1620,37 @@ function appendChatMessage(role, text, isStreaming = false) {
       ? '<span class="typing-indicator">...</span>'
       : renderMarkdownSafe(text);
     msgDiv.appendChild(contentDiv);
+    if (role === 'assistant' && !msgDiv.classList.contains('chat-message-intro')) {
+      msgDiv.appendChild(buildChatActionBar());
+    }
     body.appendChild(msgDiv);
   }
 
   body.scrollTop = body.scrollHeight;
   return msgDiv;
+}
+
+function buildChatActionBar() {
+  const bar = document.createElement('div');
+  bar.className = 'chat-action-bar';
+  bar.innerHTML = `
+    <button type="button" class="chat-action-btn" title="Copy response" onclick="copyChatMessage(this)">
+      <i data-lucide="copy"></i>
+      <span>Copy</span>
+    </button>`;
+  return bar;
+}
+
+function copyChatMessage(button) {
+  const message = button.closest('.chat-message');
+  const raw = message?.dataset?.raw || '';
+  if (!raw) {
+    showToast('Nothing to copy', 2000);
+    return;
+  }
+  navigator.clipboard.writeText(raw)
+    .then(() => showToast('Response copied'))
+    .catch(() => showToast('Copy failed in this browser context', 3000));
 }
 
 function finishChatStream() {
@@ -1649,28 +1676,51 @@ function getSuggestedQuestions(result) {
   const goRows = (result.enrichment_results?.GO || []).slice(0, 2);
   const keggRows = (result.enrichment_results?.KEGG || []).slice(0, 2);
   const relations = result.gene_relations || [];
+  const sources = result.sources || {};
   const validation = result.gene_validation || {};
   const remapped = validation.summary?.remapped || 0;
+  const accepted = validation.summary?.accepted || result.input_genes?.length || 0;
+  const graphNodes = result.graph?.nodes || [];
+  const report = result.llm_insight || '';
+  const topRelation = relations[0];
+  const topPubmed = (sources.pubmed || [])[0];
 
   suggestions.push(`What is the main biological story of this ${disease} analysis?`);
 
   if (goRows.length > 0) {
     suggestions.push(`Why is "${goRows[0].term}" enriched in this gene set?`);
+    suggestions.push(`Which genes appear to drive "${goRows[0].term}" most strongly?`);
   }
   if (keggRows.length > 0) {
     suggestions.push(`Which KEGG pathways matter most here, and why?`);
+    suggestions.push(`How should I interpret ${keggRows[0].term} in the context of ${disease}?`);
   }
   if (topGenes.length > 0) {
     suggestions.push(`Which of ${topGenes.join(', ')} appear most central in the result?`);
   }
-  if (relations.length > 0) {
+  if (topRelation) {
+    const relGenes = [topRelation.gene_a, topRelation.gene_b].filter(Boolean).slice(0, 2);
+    if (relGenes.length === 2) {
+      suggestions.push(`What evidence links ${relGenes[0]} and ${relGenes[1]} in this analysis?`);
+    }
     suggestions.push('What relationships in the extracted evidence look most important?');
   }
   if (remapped > 0) {
     suggestions.push('Did any validated genes get remapped, and does that affect interpretation?');
   }
-  if ((result.sources?.pubmed || []).length > 0) {
+  if (topPubmed?.title) {
+    suggestions.push(`Which source best supports the conclusion, starting with "${topPubmed.title}"?`);
+  } else if ((sources.pubmed || []).length > 0) {
     suggestions.push('Which PubMed sources best support the current conclusion?');
+  }
+  if (accepted > 0 && accepted <= 20) {
+    suggestions.push('How would you break these genes into functional modules?');
+  }
+  if (graphNodes.length > 0) {
+    suggestions.push('What does the network structure suggest about the most connected genes?');
+  }
+  if (report) {
+    suggestions.push('Can you summarize the report into the three most important takeaways?');
   }
 
   return Array.from(new Set(suggestions)).slice(0, 4);

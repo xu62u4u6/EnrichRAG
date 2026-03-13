@@ -137,7 +137,11 @@
   <div class="chat-body" id="chatBody">
     <div class="chat-message assistant chat-message-intro">
       <div class="msg-content">
-        <p>Ask about the current analysis result, report, sources, or relations.</p>
+        <div class="state-card state-card-empty state-card-compact">
+          <h3>Analysis Assistant</h3>
+          <p>Ask about the current analysis result, report, sources, or relations.</p>
+        </div>
+        <div class="chat-welcome-rule"></div>
         <div class="chat-suggestions" id="chatSuggestions"></div>
       </div>
     </div>
@@ -145,7 +149,7 @@
   <div class="chat-footer">
     <form id="chatForm">
       <input type="text" id="chatInput" placeholder="Ask about this analysis..." autocomplete="off">
-      <button type="submit" class="btn btn-primary btn-icon"><i data-lucide="send"></i></button>
+      <button type="submit" class="chat-send-btn" aria-label="Send message"><i data-lucide="send"></i></button>
     </form>
     <div class="chat-footer-meta">ENRICHRAG ASSISTANT V1.0</div>
   </div>

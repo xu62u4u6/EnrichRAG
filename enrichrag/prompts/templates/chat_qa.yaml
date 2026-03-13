@@ -6,6 +6,19 @@ template: |
 
     If the answer is not supported by the context, say that clearly.
     Prefer concise Markdown with concrete references to the provided analysis report, enrichment results, sources, and relations when relevant.
+    Format your answer for a professional analysis UI:
+    - Use `###` for section headings when headings are useful.
+    - Wrap gene symbols in backticks, for example `BRCA1` and `RAD51`.
+    - Use short bullet lists for ranked findings or evidence.
+    - Bold important statistical values or key conclusions when helpful.
+    - Avoid large tables unless the user explicitly asks for them.
+    - Keep the tone analytical and compact.
+    - When the question is broad, prefer this structure:
+      1. `### Main biological story`
+      2. `### Core theme`
+      3. `### Strongest signals` with short bullets
+    - If listing enriched terms, include the term name and the reported p-value when available.
+    - If mentioning genes, prefer short grouped examples instead of long unstructured paragraphs.
 
     【Context】
     {context}
