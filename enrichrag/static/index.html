@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="css/style.css">
   <script>window.__API_PREFIX = '';</script>
 </head>
-<body>
+<body class="ui-refactor-body">
 
 <!-- Sidebar -->
 <aside class="sidebar">
@@ -23,17 +23,17 @@
       <small>Literature Aug.</small>
     </div>
   </div>
-  <button class="mobile-toggle" onclick="document.querySelector('.sidebar nav').classList.toggle('open')" aria-label="Toggle menu">
+  <button class="mobile-toggle" id="mobileNavToggle" aria-label="Toggle menu">
     <i data-lucide="menu"></i>
   </button>
   <nav>
-    <button class="nav-btn active" data-view="input" onclick="switchView('input')">
+    <button class="nav-btn active" data-view="input">
       <i data-lucide="dna"></i> New Analysis
     </button>
-    <button class="nav-btn" data-view="results" onclick="switchView('results')" disabled id="navResults">
+    <button class="nav-btn" data-view="results" disabled id="navResults">
       <i data-lucide="layout-dashboard"></i> Results
     </button>
-    <button class="nav-btn" data-view="history" onclick="switchView('history')">
+    <button class="nav-btn" data-view="history">
       <i data-lucide="history"></i> History <span class="badge" id="historyBadge">0</span>
     </button>
   </nav>
@@ -71,12 +71,12 @@
           </div>
         </div>
         <div class="card-footer">
-          <div class="hint-text"><i data-lucide="corner-down-left"></i> Press enter or click to run</div>
+          <div class="hint-text"><i data-lucide="corner-down-left"></i> Press Enter to validate, or Ctrl+Enter to run</div>
           <div class="validation-actions">
-            <button class="btn btn-secondary" id="validateBtn" onclick="validateGenes()">
+            <button class="btn btn-secondary" id="validateBtn" type="button">
               Validate Genes
             </button>
-            <button class="btn btn-primary" id="runBtn" onclick="runAnalysis()" disabled>
+            <button class="btn btn-primary" id="runBtn" type="button" disabled>
               Run Pipeline
             </button>
           </div>
@@ -84,9 +84,6 @@
       </div>
       <div id="validationSummary"></div>
     </div>
-
-    <!-- VIEW: Loading (redirects to results with pipeline tab) -->
-    <div class="loading-view" id="view-loading"></div>
 
     <!-- VIEW: Results -->
     <div class="view" id="view-results">
@@ -98,10 +95,10 @@
             <p class="meta" id="resultsMeta"></p>
           </div>
           <div class="results-actions">
-            <button class="btn btn-danger" id="cancelBtn" onclick="cancelAnalysis()" style="display:none"><i data-lucide="square"></i> Stop</button>
-            <button class="btn btn-secondary" onclick="toggleChatDrawer()"><i data-lucide="message-square"></i> Ask Assistant</button>
-            <button class="btn btn-secondary" onclick="copyReport()"><i data-lucide="copy"></i> Copy</button>
-            <button class="btn btn-secondary" onclick="downloadJSON()"><i data-lucide="download"></i> JSON</button>
+            <button class="btn btn-danger" id="cancelBtn" type="button" style="display:none"><i data-lucide="square"></i> Stop</button>
+            <button class="btn btn-secondary" id="openChatBtn" type="button"><i data-lucide="message-square"></i> Ask Assistant</button>
+            <button class="btn btn-secondary" id="copyReportBtn" type="button"><i data-lucide="clipboard"></i> Copy</button>
+            <button class="btn btn-secondary" id="downloadJsonBtn" type="button"><i data-lucide="download"></i> JSON</button>
           </div>
         </div>
       </div>
@@ -125,7 +122,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div class="drawer-backdrop" id="chatBackdrop" onclick="toggleChatDrawer(false)"></div>
+<div class="drawer-backdrop" id="chatBackdrop"></div>
 <aside class="chat-drawer" id="chatDrawer" aria-hidden="true">
   <div class="drawer-header">
     <div>
@@ -133,40 +130,45 @@
       <h3>EnrichRAG Assistant</h3>
       <p class="chat-header-note">Context-aware analysis grounded in the current pipeline result.</p>
     </div>
-    <button class="drawer-close" onclick="toggleChatDrawer(false)" aria-label="Close chat">
+    <button class="drawer-close" id="closeChatBtn" type="button" aria-label="Close chat">
       <i data-lucide="x"></i>
     </button>
   </div>
   <div class="chat-body" id="chatBody">
     <div class="chat-message assistant chat-message-intro">
       <div class="msg-content">
-        <p>Ask about the current analysis result, report, sources, or relations.</p>
+        <div class="state-card state-card-empty state-card-compact">
+          <h3>Analysis Assistant</h3>
+          <p>Ask about the current analysis result, report, sources, or relations.</p>
+        </div>
+        <div class="chat-welcome-rule"></div>
         <div class="chat-suggestions" id="chatSuggestions"></div>
       </div>
     </div>
   </div>
   <div class="chat-footer">
-    <form id="chatForm" onsubmit="handleChatSubmit(event)">
+    <form id="chatForm">
       <input type="text" id="chatInput" placeholder="Ask about this analysis..." autocomplete="off">
-      <button type="submit" class="btn btn-primary btn-icon"><i data-lucide="send"></i></button>
+      <button type="submit" class="chat-send-btn" aria-label="Send message"><i data-lucide="send"></i></button>
     </form>
     <div class="chat-footer-meta">ENRICHRAG ASSISTANT V1.0</div>
   </div>
 </aside>
-<div class="drawer-backdrop" id="drawerBackdrop" onclick="closeGeneDrawer()"></div>
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
 <aside class="gene-drawer" id="geneDrawer" aria-hidden="true">
   <div class="drawer-header">
     <div>
       <div class="drawer-kicker">Gene Profile</div>
       <h3 id="drawerTitle">Gene</h3>
     </div>
-    <button class="drawer-close" onclick="closeGeneDrawer()" aria-label="Close gene info">
+    <button class="drawer-close" id="closeGeneDrawerBtn" type="button" aria-label="Close gene info">
       <i data-lucide="x"></i>
     </button>
   </div>
   <div class="drawer-body" id="drawerBody"></div>
 </aside>
 
+<script src="js/ui_helpers.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

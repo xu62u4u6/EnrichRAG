@@ -39,8 +39,3 @@ def _render_static_html(filename: str) -> HTMLResponse:
 @app.get(f"{prefix}/", response_class=HTMLResponse)
 async def index():
     return _render_static_html("index.html")
-
-
-@app.get(f"{prefix}/ui-refactor", response_class=HTMLResponse)
-async def index_ui_refactor():
-    return _render_static_html("index_ui_refactor.html")

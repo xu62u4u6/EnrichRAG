@@ -3,16 +3,123 @@
 
 const API_PREFIX = window.__API_PREFIX || '';
 const MAX_HISTORY = 20;
-let currentResult = null;
-let currentView = 'input';
-let _eventSource = null;
-let _pipelineRunning = false;
-let currentValidation = null;
-let isChatOpen = false;
-let chatHistory = [];
+const { esc, escAttr, renderMarkdownSafe, renderStateCard, safeUrl } = window.enrichRAGUI;
+const appState = {
+  currentResult: null,
+  currentView: 'input',
+  pipelineRunning: false,
+  eventSource: null,
+  currentValidation: null,
+  isChatOpen: false,
+  chatHistory: [],
+  activeDrawer: null,
+  lastFocusedElement: null,
+};
+
+const api = {
+  validateGenes(genes) {
+    return fetch(API_PREFIX + '/api/genes/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ genes }),
+    });
+  },
+
+  fetchGeneProfile(symbol) {
+    return fetch(API_PREFIX + '/api/genes/' + encodeURIComponent(symbol));
+  },
+
+  startAnalysisStream(params) {
+    return new EventSource(API_PREFIX + '/api/analyze/stream?' + params);
+  },
+
+  chat(payload) {
+    return fetch(`${API_PREFIX}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+};
+
+function getCurrentResult() {
+  return appState.currentResult;
+}
+
+function setCurrentResult(result) {
+  appState.currentResult = normalizeResultShape(result);
+  return appState.currentResult;
+}
+
+function getCurrentValidation() {
+  return appState.currentValidation;
+}
+
+function setCurrentValidation(validation) {
+  appState.currentValidation = validation;
+  return appState.currentValidation;
+}
+
+function resetChatHistory() {
+  appState.chatHistory = [];
+}
+
+function getChatHistory() {
+  return appState.chatHistory;
+}
+
+function pushChatHistory(message) {
+  appState.chatHistory.push(message);
+}
+
+function normalizeResultShape(result) {
+  if (!result) return null;
+  const normalizedGenes = deriveInputGenes(result);
+  return {
+    input_genes: normalizedGenes,
+    disease_context: result.disease_context || 'Analysis',
+    enrichment_results: result.enrichment_results || {},
+    llm_insight: result.llm_insight || '',
+    sources: {
+      web: result.sources?.web || result.web_sources || [],
+      pubmed: result.sources?.pubmed || [],
+    },
+    gene_relations: result.gene_relations || [],
+    graph: result.graph || { nodes: [], edges: [] },
+    query_plan: result.query_plan || {},
+    gene_validation: result.gene_validation || null,
+    timestamp: result.timestamp || null,
+  };
+}
+
+function deriveInputGenes(result) {
+  if (!result) return [];
+  if (Array.isArray(result.input_genes) && result.input_genes.length) return result.input_genes;
+  if (Array.isArray(result.genes) && result.genes.length) return result.genes;
+  const validation = result.gene_validation || null;
+  if (Array.isArray(validation?.normalized_genes) && validation.normalized_genes.length) {
+    return validation.normalized_genes;
+  }
+  if (Array.isArray(validation?.rows) && validation.rows.length) {
+    const rows = validation.rows
+      .filter((row) => row?.status !== 'rejected')
+      .map((row) => row?.normalized_symbol || row?.canonical_symbol || row?.mapped_to || row?.input_gene)
+      .filter(Boolean);
+    if (rows.length) return rows;
+  }
+  if (Array.isArray(result.graph?.nodes) && result.graph.nodes.length) {
+    const graphGenes = result.graph.nodes
+      .map((node) => node?.id || node?.label || node?.name)
+      .filter((value) => typeof value === 'string' && value.trim())
+      .slice(0, 100);
+    if (graphGenes.length) return graphGenes;
+  }
+  return [];
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
+  initEventHandlers();
   renderHistory();
   ['genes', 'disease', 'pval'].forEach((id) => {
     const el = document.getElementById(id);
@@ -20,14 +127,82 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+function initEventHandlers() {
+  document.getElementById('mobileNavToggle')?.addEventListener('click', () => {
+    document.querySelector('.sidebar nav')?.classList.toggle('open');
+  });
+
+  document.querySelectorAll('.nav-btn[data-view]').forEach((button) => {
+    button.addEventListener('click', () => switchView(button.dataset.view));
+  });
+
+  document.getElementById('validateBtn')?.addEventListener('click', validateGenes);
+  document.getElementById('runBtn')?.addEventListener('click', runAnalysis);
+  document.getElementById('cancelBtn')?.addEventListener('click', cancelAnalysis);
+  document.getElementById('openChatBtn')?.addEventListener('click', () => toggleChatDrawer());
+  document.getElementById('copyReportBtn')?.addEventListener('click', copyReport);
+  document.getElementById('downloadJsonBtn')?.addEventListener('click', downloadJSON);
+  document.getElementById('chatBackdrop')?.addEventListener('click', () => toggleChatDrawer(false));
+  document.getElementById('closeChatBtn')?.addEventListener('click', () => toggleChatDrawer(false));
+  document.getElementById('drawerBackdrop')?.addEventListener('click', closeGeneDrawer);
+  document.getElementById('closeGeneDrawerBtn')?.addEventListener('click', closeGeneDrawer);
+  document.getElementById('chatForm')?.addEventListener('submit', handleChatSubmit);
+  document.getElementById('disease')?.addEventListener('keydown', handlePrimaryActionKeydown);
+  document.getElementById('pval')?.addEventListener('keydown', handlePrimaryActionKeydown);
+  document.getElementById('genes')?.addEventListener('keydown', handleGenesKeydown);
+  document.addEventListener('keydown', handleGlobalKeydown);
+}
+
+function handlePrimaryActionKeydown(event) {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  submitPrimaryAction();
+}
+
+function handleGenesKeydown(event) {
+  if (event.key !== 'Enter' || (!event.ctrlKey && !event.metaKey)) return;
+  event.preventDefault();
+  submitPrimaryAction(true);
+}
+
+function submitPrimaryAction(preferRun = false) {
+  const runBtn = document.getElementById('runBtn');
+  if (preferRun && runBtn && !runBtn.disabled) {
+    runAnalysis();
+    return;
+  }
+  const validation = getCurrentValidation();
+  if (validation?.normalized_genes?.length && runBtn && !runBtn.disabled) {
+    runAnalysis();
+    return;
+  }
+  validateGenes();
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key === 'Escape') {
+    if (appState.activeDrawer === 'chat') {
+      toggleChatDrawer(false);
+      return;
+    }
+    if (appState.activeDrawer === 'gene') {
+      closeGeneDrawer();
+      return;
+    }
+  }
+
+  if (event.key !== 'Tab' || !appState.activeDrawer) return;
+  trapDrawerFocus(event);
+}
+
 /* ---- Navigation ---- */
 
 function switchView(name) {
-  if (name === 'results' && !currentResult && !_pipelineRunning) return;
-  if (name === 'results' && currentResult) {
-    renderResultTabs(currentResult);
+  if (name === 'results' && !appState.currentResult && !appState.pipelineRunning) return;
+  if (name === 'results' && appState.currentResult) {
+    renderResultTabs(appState.currentResult);
   }
-  currentView = name;
+  appState.currentView = name;
   document.querySelectorAll('.view, .loading-view').forEach(v => v.classList.remove('active'));
   const el = document.getElementById('view-' + name);
   if (el) el.classList.add('active');
@@ -50,7 +225,7 @@ function showToast(msg, ms = 2500) {
 }
 
 function resetValidationUI() {
-  currentValidation = null;
+  setCurrentValidation(null);
   const summary = document.getElementById('validationSummary');
   if (summary) summary.innerHTML = '';
   const runBtn = document.getElementById('runBtn');
@@ -71,18 +246,15 @@ async function validateGenes() {
   runBtn.disabled = true;
 
   try {
-    const response = await fetch(API_PREFIX + '/api/genes/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ genes }),
-    });
+    const response = await api.validateGenes(genes);
     if (!response.ok) throw new Error('Validation failed');
-    currentValidation = await response.json();
-    renderValidationSummary(currentValidation);
-    renderValidationResultsPreview(currentValidation, disease);
+    const validation = await response.json();
+    setCurrentValidation(validation);
+    renderValidationSummary(validation);
+    renderValidationResultsPreview(validation, disease);
     document.getElementById('navResults').disabled = false;
-    runBtn.disabled = !currentValidation.normalized_genes.length;
-    showToast(`Validated ${currentValidation.summary.total} genes`);
+    runBtn.disabled = !validation.normalized_genes.length;
+    showToast(`Validated ${validation.summary.total} genes`);
   } catch (err) {
     console.error(err);
     showToast('Gene validation failed');
@@ -99,7 +271,7 @@ function renderValidationSummary(data) {
 }
 
 function renderValidationResultsPreview(validationData, disease) {
-  currentResult = {
+  setCurrentResult({
     input_genes: validationData.normalized_genes || [],
     disease_context: disease || 'Analysis',
     enrichment_results: {},
@@ -108,7 +280,7 @@ function renderValidationResultsPreview(validationData, disease) {
     gene_relations: [],
     graph: { nodes: [], edges: [] },
     gene_validation: validationData,
-  };
+  });
   resetChatSession();
   document.getElementById('statusBadge').innerHTML = '<i data-lucide="badge-check"></i> Validation Ready';
   document.getElementById('navResults').disabled = false;
@@ -120,21 +292,33 @@ async function openGeneDrawer(symbol) {
   const title = document.getElementById('drawerTitle');
   const body = document.getElementById('drawerBody');
   title.textContent = symbol;
-  body.innerHTML = '<div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Loading gene profile...</div>';
+  body.innerHTML = renderStateCard({
+    tone: 'waiting',
+    icon: 'loader-2',
+    title: 'Loading gene profile',
+    description: 'Fetching canonical metadata and reference fields for this gene.',
+    compact: true,
+  });
   drawer.classList.add('open');
   backdrop.classList.add('open');
   drawer.setAttribute('aria-hidden', 'false');
+  setActiveDrawer('gene', drawer);
   lucide.createIcons();
 
   try {
-    const response = await fetch(API_PREFIX + '/api/genes/' + encodeURIComponent(symbol));
+    const response = await api.fetchGeneProfile(symbol);
     if (!response.ok) throw new Error('Profile not found');
     const data = await response.json();
     title.textContent = data.canonical_symbol || symbol;
     body.innerHTML = renderGeneDrawer(data);
   } catch (err) {
     console.error(err);
-    body.innerHTML = '<div class="no-data">Gene profile not found.</div>';
+    body.innerHTML = renderStateCard({
+      icon: 'dna-off',
+      title: 'Gene profile unavailable',
+      description: 'This gene does not have a stored profile in the current dataset.',
+      compact: true,
+    });
   }
   lucide.createIcons();
 }
@@ -145,6 +329,7 @@ function closeGeneDrawer() {
   drawer.classList.remove('open');
   backdrop.classList.remove('open');
   drawer.setAttribute('aria-hidden', 'true');
+  clearActiveDrawer('gene');
 }
 
 function renderGeneDrawer(data) {
@@ -487,7 +672,11 @@ function handlePartialData(data) {
     lucide.createIcons();
   }
 
-  if (data.sources) {
+  const currentResult = getCurrentResult();
+  const currentEnrichment = currentResult?.enrichment_results || {};
+  const hasEnrichment = Object.values(currentEnrichment).some((rows) => Array.isArray(rows) && rows.length > 0);
+
+  if (data.sources && hasEnrichment) {
     const sources = data.sources;
     const webSources = sources.web || [];
     const pubmedSources = sources.pubmed || [];
@@ -626,18 +815,19 @@ function getPipelineHTML() {
 /* ---- Analysis ---- */
 
 function runAnalysis() {
-  const genes = currentValidation && currentValidation.normalized_genes.length
-    ? currentValidation.normalized_genes.join(' ')
+  const validation = getCurrentValidation();
+  const genes = validation && validation.normalized_genes.length
+    ? validation.normalized_genes.join(' ')
     : document.getElementById('genes').value.trim();
   const disease = document.getElementById('disease').value.trim();
   const pval = document.getElementById('pval').value;
   if (!genes) return;
-  if (!currentValidation || !currentValidation.normalized_genes.length) {
+  if (!validation || !validation.normalized_genes.length) {
     showToast('Validate genes before running the pipeline');
     return;
   }
 
-  _pipelineRunning = true;
+  appState.pipelineRunning = true;
   document.getElementById('runBtn').disabled = true;
   document.getElementById('validateBtn').disabled = true;
 
@@ -660,11 +850,11 @@ function runAnalysis() {
 
   document.getElementById('tabPanels').innerHTML =
     `<div class="tab-panel active" id="panel-pipeline">${getPipelineHTML()}</div>` +
-    `<div class="tab-panel" id="panel-genes"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for validation details...</div></div>` +
-    `<div class="tab-panel" id="panel-enrichment"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>` +
-    `<div class="tab-panel" id="panel-sources"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>` +
-    `<div class="tab-panel" id="panel-network"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>` +
-    `<div class="tab-panel" id="panel-report"><div class="no-data waiting-hint"><i data-lucide="loader-2" class="spin-icon"></i> Waiting for pipeline...</div></div>`;
+    `<div class="tab-panel" id="panel-genes">${renderStateCard({ tone: 'waiting', icon: 'loader-2', title: 'Waiting for validation details', description: 'Validate genes to review accepted, remapped, and rejected symbols.', compact: true })}</div>` +
+    `<div class="tab-panel" id="panel-enrichment">${renderStateCard({ tone: 'waiting', icon: 'loader-2', title: 'Waiting for pipeline', description: 'Run the pipeline to populate enrichment tables and ranked terms.', compact: true })}</div>` +
+    `<div class="tab-panel" id="panel-sources">${renderStateCard({ tone: 'waiting', icon: 'loader-2', title: 'Waiting for pipeline', description: 'Source articles and PubMed evidence will appear after analysis.', compact: true })}</div>` +
+    `<div class="tab-panel" id="panel-network">${renderStateCard({ tone: 'waiting', icon: 'loader-2', title: 'Waiting for pipeline', description: 'The relation network is generated after extraction completes.', compact: true })}</div>` +
+    `<div class="tab-panel" id="panel-report">${renderStateCard({ tone: 'waiting', icon: 'loader-2', title: 'Waiting for pipeline', description: 'A report will be generated once the analysis finishes.', compact: true })}</div>`;
 
   document.getElementById('navResults').disabled = false;
   switchView('results');
@@ -674,25 +864,25 @@ function runAnalysis() {
   resetPipeline();
 
   const params = new URLSearchParams({ genes, disease, pval });
-  const es = new EventSource(API_PREFIX + '/api/analyze/stream?' + params);
-  _eventSource = es;
+  const es = api.startAnalysisStream(params);
+  appState.eventSource = es;
 
   es.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.event === 'result') {
       es.close();
-      _eventSource = null;
-      _pipelineRunning = false;
-      if (currentValidation) {
-        msg.data.gene_validation = currentValidation;
+      appState.eventSource = null;
+      appState.pipelineRunning = false;
+      if (validation) {
+        msg.data.gene_validation = validation;
       }
-      currentResult = msg.data;
+      setCurrentResult(msg.data);
       resetChatSession();
       finishPipeline(msg.data, false);
     } else if (msg.event === 'error') {
       es.close();
-      _eventSource = null;
-      _pipelineRunning = false;
+      appState.eventSource = null;
+      appState.pipelineRunning = false;
       document.getElementById('runBtn').disabled = false;
       document.getElementById('validateBtn').disabled = false;
       document.getElementById('cancelBtn').style.display = 'none';
@@ -709,8 +899,8 @@ function runAnalysis() {
 
   es.onerror = () => {
     es.close();
-    _eventSource = null;
-    _pipelineRunning = false;
+    appState.eventSource = null;
+    appState.pipelineRunning = false;
     document.getElementById('runBtn').disabled = false;
     document.getElementById('validateBtn').disabled = false;
     document.getElementById('cancelBtn').style.display = 'none';
@@ -722,11 +912,11 @@ function runAnalysis() {
 }
 
 function cancelAnalysis() {
-  if (_eventSource) {
-    _eventSource.close();
-    _eventSource = null;
+  if (appState.eventSource) {
+    appState.eventSource.close();
+    appState.eventSource = null;
   }
-  _pipelineRunning = false;
+  appState.pipelineRunning = false;
   document.getElementById('runBtn').disabled = false;
   document.getElementById('validateBtn').disabled = false;
   document.getElementById('cancelBtn').style.display = 'none';
@@ -757,10 +947,10 @@ function finishPipeline(data, wasCancelled) {
     document.getElementById('statusBadge').innerHTML = '<i data-lucide="check-circle-2"></i> Analysis Complete';
   }
 
-  currentResult = data;
+  setCurrentResult(data);
   resetChatSession();
-  renderResultTabs(data);
-  saveHistory(data);
+  renderResultTabs(getCurrentResult());
+  saveHistory(getCurrentResult());
   lucide.createIcons();
 }
 
@@ -773,10 +963,11 @@ function renderResultTabs(data) {
   const pubmedSources = sources.pubmed || [];
   const goCount = (er.GO || []).length;
   const keggCount = (er.KEGG || []).length;
-  const totalSources = webSources.length + pubmedSources.length;
+  const hasEnrichment = goCount > 0 || keggCount > 0;
+  const totalSources = hasEnrichment ? (webSources.length + pubmedSources.length) : 0;
   const relationsCount = (data.gene_relations || []).length;
   const graphData = data.graph || { nodes: [], edges: [] };
-  const geneValidation = data.gene_validation || currentValidation || {
+  const geneValidation = data.gene_validation || getCurrentValidation() || {
     rows: [],
     summary: { accepted: data.input_genes.length, remapped: 0, rejected: 0, total: data.input_genes.length },
   };
@@ -853,36 +1044,63 @@ function renderResultTabs(data) {
         subPanelsHtml += `<div class="sub-panel${subActive}" id="subpanel-enrich-${k}"><div class="table-card"><div class="table-wrap">${buildTable(er[k] || [])}</div></div></div>`;
       });
       subTabsHtml += '</div>';
-      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${enrichKeys.length ? subTabsHtml + subPanelsHtml : '<div class="no-data">No enrichment results.</div>'}</div>`;
+      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${enrichKeys.length ? subTabsHtml + subPanelsHtml : `<div class="table-card">${renderStateCard({
+        icon: 'table-properties',
+        title: 'No enrichment results',
+        description: 'No significant terms are available in the selected databases.',
+        compact: true,
+      })}</div>`}</div>`;
 
     } else if (tab.key === 'network') {
-      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">
-        <div class="table-card" style="padding:0;position:relative">
-          <div id="networkGraph" style="width:100%;height:520px;overflow:hidden"></div>
-        </div>
-      </div>`;
+      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${hasEnrichment
+        ? `<div class="table-card" style="padding:0;position:relative">
+            <div id="networkGraph" style="width:100%;height:520px;overflow:hidden"></div>
+          </div>`
+        : renderStateCard({
+            tone: 'waiting',
+            icon: 'loader-2',
+            title: 'Waiting for enrichment results',
+            description: 'The network view will appear after enrichment and relation extraction are ready.',
+            compact: true,
+          })}</div>`;
 
     } else if (tab.key === 'sources') {
-      let subTabsHtml = '<div class="sub-tabs">';
-      let subPanelsHtml = '';
-      subTabsHtml += `<button class="sub-tab-btn active" data-subtab="src-pubmed" onclick="switchSubTab('sources','src-pubmed')">PubMed ${pubmedSources.length}</button>`;
-      subPanelsHtml += `<div class="sub-panel active" id="subpanel-src-pubmed"><div class="table-card"><div class="sources-list">${renderPubmedSources(pubmedSources)}</div></div></div>`;
-      subTabsHtml += `<button class="sub-tab-btn" data-subtab="src-web" onclick="switchSubTab('sources','src-web')">Web ${webSources.length}</button>`;
-      subPanelsHtml += `<div class="sub-panel" id="subpanel-src-web"><div class="table-card"><div class="sources-list">${renderWebSources(webSources)}</div></div></div>`;
-      subTabsHtml += '</div>';
-      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${subTabsHtml}${subPanelsHtml}</div>`;
+      if (!hasEnrichment) {
+        panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${renderStateCard({
+          tone: 'waiting',
+          icon: 'loader-2',
+          title: 'Waiting for enrichment results',
+          description: 'Sources will be shown after GO or KEGG results are available.',
+          compact: true,
+        })}</div>`;
+      } else {
+        let subTabsHtml = '<div class="sub-tabs">';
+        let subPanelsHtml = '';
+        subTabsHtml += `<button class="sub-tab-btn active" data-subtab="src-pubmed" onclick="switchSubTab('sources','src-pubmed')">PubMed ${pubmedSources.length}</button>`;
+        subPanelsHtml += `<div class="sub-panel active" id="subpanel-src-pubmed"><div class="table-card"><div class="sources-list">${renderPubmedSources(pubmedSources)}</div></div></div>`;
+        subTabsHtml += `<button class="sub-tab-btn" data-subtab="src-web" onclick="switchSubTab('sources','src-web')">Web ${webSources.length}</button>`;
+        subPanelsHtml += `<div class="sub-panel" id="subpanel-src-web"><div class="table-card"><div class="sources-list">${renderWebSources(webSources)}</div></div></div>`;
+        subTabsHtml += '</div>';
+        panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${subTabsHtml}${subPanelsHtml}</div>`;
+      }
 
     } else if (tab.key === 'report') {
       const ts = data.timestamp ? new Date(data.timestamp).toLocaleString() : new Date().toLocaleString();
-      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">
-        <div class="table-card">
-          <div class="report-banner">
-            <div class="banner-item"><i data-lucide="flask-conical"></i> Context: <b>&nbsp;${esc(data.disease_context)}</b></div>
-            <div class="banner-item"><i data-lucide="clock"></i> <b>&nbsp;${ts}</b></div>
-          </div>
-          <div class="report-content">${marked.parse(data.llm_insight || '_No report generated._')}</div>
-        </div>
-      </div>`;
+      panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${hasEnrichment
+        ? `<div class="report-shell">
+            <div class="report-banner">
+              <div class="banner-item"><i data-lucide="flask-conical"></i> Context: <b>&nbsp;${esc(data.disease_context)}</b></div>
+              <div class="banner-item"><i data-lucide="clock"></i> <b>&nbsp;${ts}</b></div>
+            </div>
+            <div class="report-content">${renderMarkdownSafe(data.llm_insight || '_No report generated._')}</div>
+          </div>`
+        : renderStateCard({
+            tone: 'waiting',
+            icon: 'loader-2',
+            title: 'Waiting for enrichment results',
+            description: 'The report will appear after enrichment and evidence retrieval complete.',
+            compact: true,
+          })}</div>`;
     }
   });
 
@@ -903,7 +1121,12 @@ function renderResult(data) {
 function renderValidationSummaryCard(data, inResults = false) {
   const rows = data.rows || [];
   if (!rows.length) {
-    return '<div class="no-data">No gene validation details available.</div>';
+    return renderStateCard({
+      icon: 'shield-question',
+      title: 'No validation details',
+      description: 'This result does not contain gene validation metadata.',
+      compact: true,
+    });
   }
 
   const tableRows = rows.map((row) => {
@@ -935,7 +1158,7 @@ function renderValidationSummaryCard(data, inResults = false) {
           <span class="validation-badge rejected">Rejected ${data.summary.rejected}</span>
         </div>
       </div>
-      <div class="table-card" style="border:none;border-radius:0;box-shadow:none;">
+      <div class="table-card table-card-flat">
         <div class="table-wrap">
           <table>
             <thead>
@@ -1076,12 +1299,17 @@ function renderNetworkGraph(graphData) {
 /* ---- Sources Rendering ---- */
 
 function renderWebSources(sources) {
-  if (!sources.length) return '<div class="no-data">No web search results.</div>';
+  if (!sources.length) return `<div class="table-card">${renderStateCard({
+    icon: 'globe',
+    title: 'No web sources',
+    description: 'No web search results were captured for this analysis.',
+    compact: true,
+  })}</div>`;
   return sources.map(s =>
     `<div class="source-item">
       <div class="source-icon web"><i data-lucide="globe"></i></div>
       <div class="source-body">
-        <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || 'Untitled')}</a>
+        <a href="${escAttr(safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.title || 'Untitled')}</a>
         <div class="source-url">${esc(s.url)}</div>
         <div class="source-snippet">${esc(s.content || '')}</div>
       </div>
@@ -1090,17 +1318,25 @@ function renderWebSources(sources) {
 }
 
 function renderPubmedSources(sources) {
-  if (!sources.length) return '<div class="no-data">No PubMed results.</div>';
+  if (!sources.length) return `<div class="table-card">${renderStateCard({
+    icon: 'book-open',
+    title: 'No PubMed sources',
+    description: 'No PubMed articles were retrieved for this analysis.',
+    compact: true,
+  })}</div>`;
   return sources.map(s => {
     const metaParts = [];
     if (s.pmid) metaParts.push(`<span class="source-meta-badge">PMID:${esc(s.pmid)}</span>`);
     if (s.journal) metaParts.push(`<span class="source-meta-text">${esc(s.journal)}</span>`);
     if (s.pub_date) metaParts.push(`<span class="source-meta-text">${esc(s.pub_date)}</span>`);
     if (s.authors) metaParts.push(`<span class="source-meta-text">${esc(s.authors)}</span>`);
+    const pubmedHref = s.pmid
+      ? `https://pubmed.ncbi.nlm.nih.gov/${encodeURIComponent(String(s.pmid))}/`
+      : '#';
     return `<div class="source-item">
       <div class="source-icon pubmed"><i data-lucide="graduation-cap"></i></div>
       <div class="source-body">
-        <a href="https://pubmed.ncbi.nlm.nih.gov/${esc(s.pmid)}/" target="_blank" rel="noopener">${esc(s.title || 'Untitled')}</a>
+        <a href="${escAttr(pubmedHref)}" target="_blank" rel="noopener noreferrer">${esc(s.title || 'Untitled')}</a>
         <div class="source-meta">${metaParts.join('')}</div>
         <div class="source-snippet">${esc(s.abstract || '')}</div>
       </div>
@@ -1138,7 +1374,12 @@ const COL_DEFS = [
 ];
 
 function buildTable(rows) {
-  if (!rows.length) return '<div class="no-data">No significant results found.</div>';
+  if (!rows.length) return renderStateCard({
+    icon: 'table-properties',
+    title: 'No significant results',
+    description: 'No rows passed the current significance threshold.',
+    compact: true,
+  });
   let html = '<table><thead><tr>';
   COL_DEFS.forEach((c, i) => {
     html += `<th onclick="sortTableCol(this, ${i}, '${c.key}')">${c.label}<span class="sort-icon"><i data-lucide="chevron-up" style="width:12px;height:12px;"></i></span></th>`;
@@ -1193,6 +1434,7 @@ function sortTableCol(th, colIdx, key) {
 /* ---- Export ---- */
 
 function downloadJSON() {
+  const currentResult = getCurrentResult();
   if (!currentResult) return;
   const blob = new Blob([JSON.stringify(currentResult, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -1203,8 +1445,11 @@ function downloadJSON() {
 }
 
 function copyReport() {
+  const currentResult = getCurrentResult();
   if (!currentResult) return;
-  navigator.clipboard.writeText(currentResult.llm_insight || '').then(() => showToast('Report copied'));
+  navigator.clipboard.writeText(currentResult.llm_insight || '')
+    .then(() => showToast('Report copied'))
+    .catch(() => showToast('Copy failed in this browser context', 3000));
 }
 
 /* ---- History ---- */
@@ -1213,10 +1458,30 @@ function getHistory() { return JSON.parse(localStorage.getItem('enrichrag_histor
 
 function saveHistory(data) {
   const hist = getHistory();
-  hist.unshift({ ts: new Date().toISOString(), input_genes: data.input_genes, disease_context: data.disease_context, data });
+  hist.unshift({
+    ts: new Date().toISOString(),
+    input_genes: deriveInputGenes(data),
+    disease_context: data.disease_context,
+    data,
+  });
   if (hist.length > MAX_HISTORY) hist.length = MAX_HISTORY;
   localStorage.setItem('enrichrag_history_v2', JSON.stringify(hist));
   renderHistory();
+}
+
+function deleteHistoryItem(idx) {
+  const hist = getHistory();
+  if (!hist[idx]) return;
+  hist.splice(idx, 1);
+  localStorage.setItem('enrichrag_history_v2', JSON.stringify(hist));
+  renderHistory();
+  showToast('History item deleted');
+}
+
+function clearHistory() {
+  localStorage.removeItem('enrichrag_history_v2');
+  renderHistory();
+  showToast('History cleared');
 }
 
 function renderHistory() {
@@ -1224,29 +1489,42 @@ function renderHistory() {
   document.getElementById('historyBadge').textContent = hist.length;
   if (!hist.length) {
     document.getElementById('historyCard').innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon"><i data-lucide="clock"></i></div>
-        <h3>No analyses yet</h3>
-        <p>Run your first enrichment analysis to see results here.</p>
-      </div>`;
+      ${renderStateCard({
+        icon: 'clock-3',
+        title: 'No analyses yet',
+        description: 'Run your first enrichment analysis to see saved results here.',
+      })}`;
     lucide.createIcons();
     return;
   }
-  let html = '<ul class="history-list">';
+  let html = `
+    <div class="history-toolbar">
+      <div class="history-toolbar-copy">${hist.length} saved result${hist.length > 1 ? 's' : ''}</div>
+      <button class="btn btn-secondary history-clear-btn" type="button" onclick="clearHistory()">
+        <i data-lucide="trash-2"></i> Clear History
+      </button>
+    </div>
+    <ul class="history-list">`;
   hist.forEach((h, i) => {
-    const genes = h.input_genes || h.data?.input_genes || [];
+    const genes = deriveInputGenes(h.data || h);
     const disease = h.disease_context || h.data?.disease_context || '';
     const time = new Date(h.ts).toLocaleString();
-    html += `<li><button onclick="loadHistory(${i})">
-      <div class="hist-info">
-        <div class="hist-title">
-          <span class="hist-disease">${esc(disease)}</span>
-          <span class="hist-gene-badge">${genes.length} genes</span>
+    const geneText = genes.length ? genes.join(', ') : 'Legacy result without stored gene inputs';
+    html += `<li class="history-item">
+      <button class="history-load-btn" type="button" onclick="loadHistory(${i})">
+        <div class="hist-info">
+          <div class="hist-title">
+            <span class="hist-disease">${esc(disease)}</span>
+            <span class="hist-gene-badge">${genes.length} genes</span>
+          </div>
+          <div class="hist-genes">${esc(geneText)}</div>
         </div>
-        <div class="hist-genes">${esc(genes.join(', '))}</div>
-      </div>
-      <span class="hist-time">${time} <i data-lucide="chevron-right"></i></span>
-    </button></li>`;
+        <span class="hist-time">${time} <i data-lucide="chevron-right"></i></span>
+      </button>
+      <button class="history-delete-btn" type="button" onclick="deleteHistoryItem(${i})" aria-label="Delete history item">
+        <i data-lucide="trash-2"></i>
+      </button>
+    </li>`;
   });
   html += '</ul>';
   document.getElementById('historyCard').innerHTML = html;
@@ -1256,9 +1534,17 @@ function renderHistory() {
 function loadHistory(idx) {
   const hist = getHistory();
   if (!hist[idx]) return;
-  currentResult = hist[idx].data;
+  setCurrentResult(hist[idx].data);
+  setCurrentValidation(hist[idx].data?.gene_validation || null);
+  if (getCurrentValidation()) {
+    renderValidationSummary(getCurrentValidation());
+    document.getElementById('runBtn').disabled = !(getCurrentValidation().normalized_genes || []).length;
+  } else {
+    resetValidationUI();
+  }
   resetChatSession();
-  document.getElementById('genes').value = (currentResult.input_genes || []).join(', ');
+  const currentResult = getCurrentResult();
+  document.getElementById('genes').value = deriveInputGenes(currentResult).join(', ');
   document.getElementById('disease').value = currentResult.disease_context || '';
   document.getElementById('navResults').disabled = false;
   renderResult(currentResult);
@@ -1266,28 +1552,22 @@ function loadHistory(idx) {
   showToast('History loaded');
 }
 
-/* ---- Utilities ---- */
-
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-function escAttr(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
-}
-
 /* ---- Chat ---- */
 
 function resetChatSession() {
-  chatHistory = [];
+  resetChatHistory();
   const body = document.getElementById('chatBody');
   if (!body) return;
   body.innerHTML = `
-    <div class="chat-message assistant">
+    <div class="chat-message assistant chat-message-intro">
       <div class="msg-content">
-        <p>Ask about the current analysis result, report, sources, or relations.</p>
+        ${renderStateCard({
+          icon: 'message-square-text',
+          title: 'Analysis Assistant',
+          description: 'Ask about the current analysis result, report, sources, or relations.',
+          compact: true,
+        })}
+        <div class="chat-welcome-rule"></div>
         <div class="chat-suggestions" id="chatSuggestions"></div>
       </div>
     </div>`;
@@ -1299,15 +1579,18 @@ function toggleChatDrawer(forceOpen) {
   const drawer = document.getElementById('chatDrawer');
   const backdrop = document.getElementById('chatBackdrop');
   if (!drawer || !backdrop) return;
-  isChatOpen = forceOpen !== undefined ? forceOpen : !isChatOpen;
-  drawer.classList.toggle('open', isChatOpen);
-  drawer.setAttribute('aria-hidden', isChatOpen ? 'false' : 'true');
-  backdrop.classList.toggle('open', isChatOpen);
-  if (isChatOpen) {
+  appState.isChatOpen = forceOpen !== undefined ? forceOpen : !appState.isChatOpen;
+  drawer.classList.toggle('open', appState.isChatOpen);
+  drawer.setAttribute('aria-hidden', appState.isChatOpen ? 'false' : 'true');
+  backdrop.classList.toggle('open', appState.isChatOpen);
+  if (appState.isChatOpen) {
+    setActiveDrawer('chat', drawer);
     setTimeout(() => {
       const input = document.getElementById('chatInput');
       if (input) input.focus();
     }, 150);
+  } else {
+    clearActiveDrawer('chat');
   }
 }
 
@@ -1323,7 +1606,7 @@ function appendChatMessage(role, text, isStreaming = false) {
       contentDiv.innerHTML = '<span class="typing-indicator">...</span>';
     } else {
       msgDiv.dataset.raw = (msgDiv.dataset.raw || '') + text;
-      contentDiv.innerHTML = marked.parse(msgDiv.dataset.raw);
+      contentDiv.innerHTML = renderMarkdownSafe(msgDiv.dataset.raw);
     }
   } else {
     msgDiv = document.createElement('div');
@@ -1335,13 +1618,42 @@ function appendChatMessage(role, text, isStreaming = false) {
     contentDiv.className = 'msg-content';
     contentDiv.innerHTML = text === '...typing...'
       ? '<span class="typing-indicator">...</span>'
-      : marked.parse(text);
+      : renderMarkdownSafe(text);
     msgDiv.appendChild(contentDiv);
+    if (role === 'assistant' && !msgDiv.classList.contains('chat-message-intro')) {
+      msgDiv.appendChild(buildChatActionBar());
+    }
     body.appendChild(msgDiv);
   }
 
   body.scrollTop = body.scrollHeight;
   return msgDiv;
+}
+
+function buildChatActionBar() {
+  const bar = document.createElement('div');
+  bar.className = 'chat-action-bar';
+  bar.innerHTML = `
+    <button type="button" class="chat-action-btn" title="Copy response" onclick="copyChatMessage(this)">
+      <svg class="chat-action-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+      </svg>
+      <span>Copy</span>
+    </button>`;
+  return bar;
+}
+
+function copyChatMessage(button) {
+  const message = button.closest('.chat-message');
+  const raw = message?.dataset?.raw || '';
+  if (!raw) {
+    showToast('Nothing to copy', 2000);
+    return;
+  }
+  navigator.clipboard.writeText(raw)
+    .then(() => showToast('Response copied'))
+    .catch(() => showToast('Copy failed in this browser context', 3000));
 }
 
 function finishChatStream() {
@@ -1367,28 +1679,51 @@ function getSuggestedQuestions(result) {
   const goRows = (result.enrichment_results?.GO || []).slice(0, 2);
   const keggRows = (result.enrichment_results?.KEGG || []).slice(0, 2);
   const relations = result.gene_relations || [];
+  const sources = result.sources || {};
   const validation = result.gene_validation || {};
   const remapped = validation.summary?.remapped || 0;
+  const accepted = validation.summary?.accepted || result.input_genes?.length || 0;
+  const graphNodes = result.graph?.nodes || [];
+  const report = result.llm_insight || '';
+  const topRelation = relations[0];
+  const topPubmed = (sources.pubmed || [])[0];
 
   suggestions.push(`What is the main biological story of this ${disease} analysis?`);
 
   if (goRows.length > 0) {
     suggestions.push(`Why is "${goRows[0].term}" enriched in this gene set?`);
+    suggestions.push(`Which genes appear to drive "${goRows[0].term}" most strongly?`);
   }
   if (keggRows.length > 0) {
     suggestions.push(`Which KEGG pathways matter most here, and why?`);
+    suggestions.push(`How should I interpret ${keggRows[0].term} in the context of ${disease}?`);
   }
   if (topGenes.length > 0) {
     suggestions.push(`Which of ${topGenes.join(', ')} appear most central in the result?`);
   }
-  if (relations.length > 0) {
+  if (topRelation) {
+    const relGenes = [topRelation.gene_a, topRelation.gene_b].filter(Boolean).slice(0, 2);
+    if (relGenes.length === 2) {
+      suggestions.push(`What evidence links ${relGenes[0]} and ${relGenes[1]} in this analysis?`);
+    }
     suggestions.push('What relationships in the extracted evidence look most important?');
   }
   if (remapped > 0) {
     suggestions.push('Did any validated genes get remapped, and does that affect interpretation?');
   }
-  if ((result.sources?.pubmed || []).length > 0) {
+  if (topPubmed?.title) {
+    suggestions.push(`Which source best supports the conclusion, starting with "${topPubmed.title}"?`);
+  } else if ((sources.pubmed || []).length > 0) {
     suggestions.push('Which PubMed sources best support the current conclusion?');
+  }
+  if (accepted > 0 && accepted <= 20) {
+    suggestions.push('How would you break these genes into functional modules?');
+  }
+  if (graphNodes.length > 0) {
+    suggestions.push('What does the network structure suggest about the most connected genes?');
+  }
+  if (report) {
+    suggestions.push('Can you summarize the report into the three most important takeaways?');
   }
 
   return Array.from(new Set(suggestions)).slice(0, 4);
@@ -1397,7 +1732,7 @@ function getSuggestedQuestions(result) {
 function renderChatSuggestions() {
   const container = document.getElementById('chatSuggestions');
   if (!container) return;
-  const questions = getSuggestedQuestions(currentResult);
+  const questions = getSuggestedQuestions(getCurrentResult());
   if (!questions.length) {
     container.innerHTML = '';
     return;
@@ -1422,6 +1757,7 @@ function submitSuggestedQuestion(question) {
 
 async function handleChatSubmit(e) {
   e.preventDefault();
+  const currentResult = getCurrentResult();
   if (!currentResult) {
     showToast('No analysis results available to query.', 3000);
     return;
@@ -1440,15 +1776,11 @@ async function handleChatSubmit(e) {
   const payload = {
     query,
     result: currentResult,
-    history: chatHistory,
+    history: getChatHistory(),
   };
 
   try {
-    const response = await fetch(`${API_PREFIX}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const response = await api.chat(payload);
 
     if (!response.ok) {
       throw new Error('Chat API returned ' + response.status);
@@ -1490,13 +1822,64 @@ async function handleChatSubmit(e) {
       }
     }
 
-    chatHistory.push({ role: 'user', content: query });
-    chatHistory.push({ role: 'assistant', content: assistantReply });
+    pushChatHistory({ role: 'user', content: query });
+    pushChatHistory({ role: 'assistant', content: assistantReply });
   } catch (err) {
     finishChatStream();
     appendChatMessage('assistant', `*Failed to fetch response: ${err.message}*`);
   } finally {
     inputEl.disabled = false;
     inputEl.focus();
+  }
+}
+
+function setActiveDrawer(name, drawerEl) {
+  appState.activeDrawer = name;
+  appState.lastFocusedElement = document.activeElement;
+  document.body.classList.add('drawer-open');
+  document.body.style.overflow = 'hidden';
+  drawerEl.dataset.drawer = name;
+}
+
+function clearActiveDrawer(name) {
+  if (appState.activeDrawer !== name) return;
+  appState.activeDrawer = null;
+  document.body.classList.remove('drawer-open');
+  document.body.style.overflow = '';
+  if (appState.lastFocusedElement instanceof HTMLElement) {
+    appState.lastFocusedElement.focus();
+  }
+  appState.lastFocusedElement = null;
+}
+
+function trapDrawerFocus(event) {
+  const drawerId = appState.activeDrawer === 'chat' ? 'chatDrawer' : 'geneDrawer';
+  const drawer = document.getElementById(drawerId);
+  if (!drawer) return;
+
+  const focusable = Array.from(drawer.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  )).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+
+  if (!focusable.length) return;
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (!drawer.contains(document.activeElement)) {
+    event.preventDefault();
+    first.focus();
+    return;
+  }
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+    return;
+  }
+
+  if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
   }
 }
