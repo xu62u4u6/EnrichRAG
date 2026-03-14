@@ -1454,6 +1454,8 @@ function copyReport() {
 
 /* ---- History ---- */
 
+let historySearchTerm = '';
+
 function getHistory() { return JSON.parse(localStorage.getItem('enrichrag_history_v2') || '[]'); }
 
 function saveHistory(data) {
@@ -1480,8 +1482,74 @@ function deleteHistoryItem(idx) {
 
 function clearHistory() {
   localStorage.removeItem('enrichrag_history_v2');
+  historySearchTerm = '';
   renderHistory();
   showToast('History cleared');
+}
+
+function getFilteredHistory(hist, searchTerm) {
+  return hist
+    .map((h, i) => ({ h, i }))
+    .filter(({ h }) => {
+      if (!searchTerm) return true;
+      const genes = deriveInputGenes(h.data || h);
+      const disease = h.disease_context || h.data?.disease_context || '';
+      const haystack = `${disease} ${genes.join(' ')}`.toLowerCase();
+      return haystack.includes(String(searchTerm).trim().toLowerCase());
+    });
+}
+
+function renderHistoryList(hist, searchTerm = historySearchTerm) {
+  const list = document.getElementById('historyList');
+  if (!list) return;
+  const filtered = getFilteredHistory(hist, searchTerm);
+  let html = '';
+  filtered.forEach(({ h, i }) => {
+    const genes = deriveInputGenes(h.data || h);
+    const disease = h.disease_context || h.data?.disease_context || '';
+    const time = new Date(h.ts).toLocaleString();
+    const geneText = genes.length ? genes.join(', ') : 'Legacy result without stored gene inputs';
+    html += `<li class="history-item">
+      <button class="history-load-btn" type="button" onclick="loadHistory(${i})">
+        <div class="hist-info">
+          <div class="hist-title">
+            <span class="hist-disease">${esc(disease)}</span>
+            <span class="hist-gene-badge">${genes.length} genes</span>
+          </div>
+          <div class="hist-genes">${esc(geneText)}</div>
+        </div>
+        <div class="hist-actions">
+          <span class="hist-time">${time}</span>
+          <span class="hist-arrow" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+        </div>
+      </button>
+      <button class="history-delete-btn" type="button" onclick="deleteHistoryItem(${i})" aria-label="Delete history item">
+        <i data-lucide="trash-2"></i>
+      </button>
+    </li>`;
+  });
+  if (!filtered.length) {
+    html += `<li class="history-empty-row">
+      <div class="history-empty-copy">No analysis history found.</div>
+    </li>`;
+  }
+  list.innerHTML = html;
+  lucide.createIcons();
+}
+
+function handleHistorySearchInput(value) {
+  const input = document.getElementById('historySearchInput');
+  const start = input ? input.selectionStart : null;
+  const end = input ? input.selectionEnd : null;
+  historySearchTerm = value;
+  renderHistoryList(getHistory(), historySearchTerm);
+  const nextInput = document.getElementById('historySearchInput');
+  if (nextInput) {
+    nextInput.focus();
+    if (start !== null && end !== null) {
+      nextInput.setSelectionRange(start, end);
+    }
+  }
 }
 
 function renderHistory() {
@@ -1497,38 +1565,26 @@ function renderHistory() {
     lucide.createIcons();
     return;
   }
-  let html = `
+  document.getElementById('historyCard').innerHTML = `
     <div class="history-toolbar">
-      <div class="history-toolbar-copy">${hist.length} saved result${hist.length > 1 ? 's' : ''}</div>
-      <button class="btn btn-secondary history-clear-btn" type="button" onclick="clearHistory()">
+      <div class="history-toolbar-meta">
+        <div class="history-toolbar-copy">${hist.length} saved result${hist.length > 1 ? 's' : ''}</div>
+        <label class="history-search-shell" aria-label="Search history">
+          <i data-lucide="search"></i>
+          <input type="text" id="historySearchInput" class="history-search-input" placeholder="Search...">
+        </label>
+      </div>
+      <button class="history-clear-btn" type="button" onclick="clearHistory()">
         <i data-lucide="trash-2"></i> Clear History
       </button>
     </div>
-    <ul class="history-list">`;
-  hist.forEach((h, i) => {
-    const genes = deriveInputGenes(h.data || h);
-    const disease = h.disease_context || h.data?.disease_context || '';
-    const time = new Date(h.ts).toLocaleString();
-    const geneText = genes.length ? genes.join(', ') : 'Legacy result without stored gene inputs';
-    html += `<li class="history-item">
-      <button class="history-load-btn" type="button" onclick="loadHistory(${i})">
-        <div class="hist-info">
-          <div class="hist-title">
-            <span class="hist-disease">${esc(disease)}</span>
-            <span class="hist-gene-badge">${genes.length} genes</span>
-          </div>
-          <div class="hist-genes">${esc(geneText)}</div>
-        </div>
-        <span class="hist-time">${time} <i data-lucide="chevron-right"></i></span>
-      </button>
-      <button class="history-delete-btn" type="button" onclick="deleteHistoryItem(${i})" aria-label="Delete history item">
-        <i data-lucide="trash-2"></i>
-      </button>
-    </li>`;
-  });
-  html += '</ul>';
-  document.getElementById('historyCard').innerHTML = html;
-  lucide.createIcons();
+    <ul class="history-list" id="historyList"></ul>`;
+  const input = document.getElementById('historySearchInput');
+  if (input) {
+    input.value = historySearchTerm;
+    input.addEventListener('input', (event) => handleHistorySearchInput(event.target.value));
+  }
+  renderHistoryList(hist, historySearchTerm);
 }
 
 function loadHistory(idx) {
