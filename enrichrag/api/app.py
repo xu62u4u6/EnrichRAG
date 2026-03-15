@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from enrichrag.api.routes import router
+from enrichrag.auth_store import init_storage
 from enrichrag.settings import settings
 
 # Optional URL prefix for obscurity when exposing to public network.
@@ -22,6 +23,7 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 # Serve CSS/JS/assets under the prefix
 app.mount(f"{prefix}/css", StaticFiles(directory=STATIC_DIR / "css"), name="css")
 app.mount(f"{prefix}/js", StaticFiles(directory=STATIC_DIR / "js"), name="js")
+app.mount(f"{prefix}/img", StaticFiles(directory=STATIC_DIR / "img"), name="img")
 
 
 def _render_static_html(filename: str) -> HTMLResponse:
@@ -33,9 +35,15 @@ def _render_static_html(filename: str) -> HTMLResponse:
         )
         html = html.replace('href="css/', f'href="{prefix}/css/')
         html = html.replace('src="js/', f'src="{prefix}/js/')
+        html = html.replace('src="img/', f'src="{prefix}/img/')
     return HTMLResponse(html)
 
 
 @app.get(f"{prefix}/", response_class=HTMLResponse)
 async def index():
     return _render_static_html("index.html")
+
+
+@app.on_event("startup")
+async def startup_event():
+    init_storage()

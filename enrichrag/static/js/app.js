@@ -14,6 +14,9 @@ const appState = {
   chatHistory: [],
   activeDrawer: null,
   lastFocusedElement: null,
+  currentUser: null,
+  historyItems: [],
+  authMode: 'login',
 };
 
 const api = {
@@ -39,6 +42,46 @@ const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+  },
+
+  login(payload) {
+    return fetch(`${API_PREFIX}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  register(payload) {
+    return fetch(`${API_PREFIX}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  logout() {
+    return fetch(`${API_PREFIX}/api/auth/logout`, { method: 'POST' });
+  },
+
+  me() {
+    return fetch(`${API_PREFIX}/api/auth/me`);
+  },
+
+  history() {
+    return fetch(`${API_PREFIX}/api/history`);
+  },
+
+  loadHistoryItem(id) {
+    return fetch(`${API_PREFIX}/api/history/${encodeURIComponent(id)}`);
+  },
+
+  deleteHistoryItem(id) {
+    return fetch(`${API_PREFIX}/api/history/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
+  clearHistory() {
+    return fetch(`${API_PREFIX}/api/history`, { method: 'DELETE' });
   },
 };
 
@@ -117,10 +160,10 @@ function deriveInputGenes(result) {
   return [];
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   lucide.createIcons();
   initEventHandlers();
-  renderHistory();
+  await bootstrapAuth();
   ['genes', 'disease', 'pval'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', resetValidationUI);
@@ -128,6 +171,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initEventHandlers() {
+  document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
+  document.getElementById('requestAccessForm')?.addEventListener('submit', handleRequestAccessSubmit);
+  document.getElementById('showRequestAccessBtn')?.addEventListener('click', () => setAuthMode('request'));
+  document.getElementById('backToLoginBtn')?.addEventListener('click', () => setAuthMode('login'));
+  document.getElementById('signOutBtn')?.addEventListener('click', handleLogout);
   document.getElementById('mobileNavToggle')?.addEventListener('click', () => {
     document.querySelector('.sidebar nav')?.classList.toggle('open');
   });
@@ -151,6 +199,138 @@ function initEventHandlers() {
   document.getElementById('pval')?.addEventListener('keydown', handlePrimaryActionKeydown);
   document.getElementById('genes')?.addEventListener('keydown', handleGenesKeydown);
   document.addEventListener('keydown', handleGlobalKeydown);
+}
+
+async function bootstrapAuth() {
+  try {
+    const response = await api.me();
+    const user = await response.json();
+    if (!user) throw new Error('unauthorized');
+    applyAuthenticatedUser(user);
+    await refreshHistory();
+  } catch (err) {
+    showAuthShell();
+  }
+}
+
+function setAuthMode(mode) {
+  appState.authMode = mode;
+  document.getElementById('loginForm')?.classList.toggle('active', mode === 'login');
+  document.getElementById('requestAccessForm')?.classList.toggle('active', mode === 'request');
+  const label = document.getElementById('authModeLabel');
+  if (label) {
+    label.textContent = mode === 'login' ? 'Augmentation Protocol' : 'Account Provisioning';
+  }
+  setAuthError('');
+  lucide.createIcons();
+}
+
+function setAuthError(message) {
+  const el = document.getElementById('authError');
+  if (el) el.textContent = message || '';
+}
+
+function formatApiError(payload, fallback) {
+  const detail = payload?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const message = detail
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (!item || typeof item !== 'object') return '';
+        const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : '';
+        const prefix = field ? `${field}: ` : '';
+        return `${prefix}${item.msg || 'Invalid value'}`;
+      })
+      .filter(Boolean)
+      .join('; ');
+    if (message) return message;
+  }
+  return fallback;
+}
+
+function showAuthShell() {
+  appState.currentUser = null;
+  document.getElementById('authShell')?.classList.add('active');
+  setAuthMode('login');
+  const username = document.getElementById('loginEmail');
+  if (username) username.focus();
+}
+
+function hideAuthShell() {
+  document.getElementById('authShell')?.classList.remove('active');
+}
+
+function applyAuthenticatedUser(user) {
+  appState.currentUser = user;
+  hideAuthShell();
+  const nameEl = document.getElementById('sidebarUserName');
+  const emailEl = document.getElementById('sidebarUsername');
+  if (nameEl) nameEl.textContent = user.display_name || user.email;
+  if (emailEl) emailEl.textContent = user.email;
+}
+
+async function handleLoginSubmit(event) {
+  event.preventDefault();
+  setAuthError('');
+  const submit = document.getElementById('loginSubmit');
+  if (submit) submit.disabled = true;
+  try {
+    const response = await api.login({
+      email: document.getElementById('loginEmail').value.trim(),
+      password: document.getElementById('loginPassword').value,
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(formatApiError(payload, 'Login failed'));
+    }
+    const user = await response.json();
+    applyAuthenticatedUser(user);
+    document.getElementById('loginPassword').value = '';
+    await refreshHistory();
+    showToast(`Signed in as ${user.email}`);
+  } catch (err) {
+    setAuthError(err.message || 'Login failed');
+  } finally {
+    if (submit) submit.disabled = false;
+  }
+}
+
+function handleRequestAccessSubmit(event) {
+  event.preventDefault();
+  setAuthError('');
+  api.register({
+    display_name: document.getElementById('requestName').value.trim(),
+    email: document.getElementById('requestEmail').value.trim(),
+    password: document.getElementById('requestPassword').value,
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(formatApiError(payload, 'Registration failed'));
+      }
+      return response.json();
+    })
+    .then(async (user) => {
+      applyAuthenticatedUser(user);
+      await refreshHistory();
+      showToast(`Account ready for ${user.email}`);
+    })
+    .catch((err) => {
+      setAuthError(err.message || 'Registration failed');
+    });
+}
+
+async function handleLogout() {
+  try {
+    await api.logout();
+  } finally {
+    appState.historyItems = [];
+    appState.currentResult = null;
+    renderHistory();
+    resetValidationUI();
+    showAuthShell();
+  }
 }
 
 function handlePrimaryActionKeydown(event) {
@@ -950,7 +1130,7 @@ function finishPipeline(data, wasCancelled) {
   setCurrentResult(data);
   resetChatSession();
   renderResultTabs(getCurrentResult());
-  saveHistory(getCurrentResult());
+  refreshHistory().catch((err) => console.error(err));
   lucide.createIcons();
 }
 
@@ -1456,34 +1636,49 @@ function copyReport() {
 
 let historySearchTerm = '';
 
-function getHistory() { return JSON.parse(localStorage.getItem('enrichrag_history_v2') || '[]'); }
+function getHistory() {
+  return appState.historyItems.slice(0, MAX_HISTORY);
+}
 
-function saveHistory(data) {
-  const hist = getHistory();
-  hist.unshift({
-    ts: new Date().toISOString(),
-    input_genes: deriveInputGenes(data),
-    disease_context: data.disease_context,
-    data,
-  });
-  if (hist.length > MAX_HISTORY) hist.length = MAX_HISTORY;
-  localStorage.setItem('enrichrag_history_v2', JSON.stringify(hist));
+async function refreshHistory() {
+  if (!appState.currentUser) {
+    appState.historyItems = [];
+    renderHistory();
+    return;
+  }
+  const response = await api.history();
+  if (!response.ok) {
+    if (response.status === 401) {
+      showAuthShell();
+      return;
+    }
+    throw new Error('Failed to load history');
+  }
+  const payload = await response.json();
+  appState.historyItems = payload.items || [];
   renderHistory();
 }
 
-function deleteHistoryItem(idx) {
-  const hist = getHistory();
-  if (!hist[idx]) return;
-  hist.splice(idx, 1);
-  localStorage.setItem('enrichrag_history_v2', JSON.stringify(hist));
-  renderHistory();
+async function deleteHistoryItem(id) {
+  const response = await api.deleteHistoryItem(id);
+  if (!response.ok) {
+    showToast('Failed to delete history item', 3000);
+    return;
+  }
+  await refreshHistory();
   showToast('History item deleted');
 }
 
-function clearHistory() {
-  localStorage.removeItem('enrichrag_history_v2');
+async function clearHistory() {
+  const confirmed = window.confirm('確定要清除所有歷史紀錄嗎？');
+  if (!confirmed) return;
+  const response = await api.clearHistory();
+  if (!response.ok) {
+    showToast('Failed to clear history', 3000);
+    return;
+  }
   historySearchTerm = '';
-  renderHistory();
+  await refreshHistory();
   showToast('History cleared');
 }
 
@@ -1492,8 +1687,8 @@ function getFilteredHistory(hist, searchTerm) {
     .map((h, i) => ({ h, i }))
     .filter(({ h }) => {
       if (!searchTerm) return true;
-      const genes = deriveInputGenes(h.data || h);
-      const disease = h.disease_context || h.data?.disease_context || '';
+      const genes = h.input_genes || [];
+      const disease = h.disease_context || '';
       const haystack = `${disease} ${genes.join(' ')}`.toLowerCase();
       return haystack.includes(String(searchTerm).trim().toLowerCase());
     });
@@ -1505,12 +1700,12 @@ function renderHistoryList(hist, searchTerm = historySearchTerm) {
   const filtered = getFilteredHistory(hist, searchTerm);
   let html = '';
   filtered.forEach(({ h, i }) => {
-    const genes = deriveInputGenes(h.data || h);
-    const disease = h.disease_context || h.data?.disease_context || '';
-    const time = new Date(h.ts).toLocaleString();
-    const geneText = genes.length ? genes.join(', ') : 'Legacy result without stored gene inputs';
+    const genes = h.input_genes || [];
+    const disease = h.disease_context || '';
+    const time = new Date(h.created_at).toLocaleString();
+    const geneText = genes.length ? genes.join(', ') : 'Stored analysis without gene inputs';
     html += `<li class="history-item">
-      <button class="history-load-btn" type="button" onclick="loadHistory(${i})">
+      <button class="history-load-btn" type="button" onclick="loadHistory(${h.id})">
         <div class="hist-info">
           <div class="hist-title">
             <span class="hist-disease">${esc(disease)}</span>
@@ -1523,7 +1718,7 @@ function renderHistoryList(hist, searchTerm = historySearchTerm) {
           <span class="hist-arrow" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
         </div>
       </button>
-      <button class="history-delete-btn" type="button" onclick="deleteHistoryItem(${i})" aria-label="Delete history item">
+      <button class="history-delete-btn" type="button" onclick="deleteHistoryItem(${h.id})" aria-label="Delete history item">
         <i data-lucide="trash-2"></i>
       </button>
     </li>`;
@@ -1588,24 +1783,33 @@ function renderHistory() {
 }
 
 function loadHistory(idx) {
-  const hist = getHistory();
-  if (!hist[idx]) return;
-  setCurrentResult(hist[idx].data);
-  setCurrentValidation(hist[idx].data?.gene_validation || null);
-  if (getCurrentValidation()) {
-    renderValidationSummary(getCurrentValidation());
-    document.getElementById('runBtn').disabled = !(getCurrentValidation().normalized_genes || []).length;
-  } else {
-    resetValidationUI();
-  }
-  resetChatSession();
-  const currentResult = getCurrentResult();
-  document.getElementById('genes').value = deriveInputGenes(currentResult).join(', ');
-  document.getElementById('disease').value = currentResult.disease_context || '';
-  document.getElementById('navResults').disabled = false;
-  renderResult(currentResult);
-  switchView('results');
-  showToast('History loaded');
+  api.loadHistoryItem(idx)
+    .then((response) => {
+      if (!response.ok) throw new Error('Failed to load saved result');
+      return response.json();
+    })
+    .then((data) => {
+      setCurrentResult(data);
+      setCurrentValidation(data?.gene_validation || null);
+      if (getCurrentValidation()) {
+        renderValidationSummary(getCurrentValidation());
+        document.getElementById('runBtn').disabled = !(getCurrentValidation().normalized_genes || []).length;
+      } else {
+        resetValidationUI();
+      }
+      resetChatSession();
+      const currentResult = getCurrentResult();
+      document.getElementById('genes').value = deriveInputGenes(currentResult).join(', ');
+      document.getElementById('disease').value = currentResult.disease_context || '';
+      document.getElementById('navResults').disabled = false;
+      renderResult(currentResult);
+      switchView('results');
+      showToast('History loaded');
+    })
+    .catch((err) => {
+      console.error(err);
+      showToast('Failed to load history', 3000);
+    });
 }
 
 /* ---- Chat ---- */
@@ -1619,7 +1823,7 @@ function resetChatSession() {
       <div class="msg-content">
         ${renderStateCard({
           icon: 'message-square-text',
-          title: 'Analysis Assistant',
+          title: 'EnrichRAG Assistant',
           description: 'Ask about the current analysis result, report, sources, or relations.',
           compact: true,
         })}

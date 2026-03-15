@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from queue import Empty, Queue
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 
 from enrichrag.core.chat_context import build_chat_prompt_inputs
@@ -18,9 +18,39 @@ from enrichrag.settings import settings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 
-from .models import ChatRequest
+from enrichrag.auth_store import (
+    authenticate_user,
+    clear_analysis_runs,
+    create_user,
+    create_session,
+    delete_analysis_run,
+    delete_session,
+    get_analysis_run,
+    get_user_by_session,
+    list_analysis_runs,
+    save_analysis_run,
+)
+
+from .models import ChatRequest, LoginRequest, RegisterRequest
 
 router = APIRouter()
+
+
+def _cookie_kwargs() -> dict:
+    return {
+        "httponly": True,
+        "samesite": "lax",
+        "secure": settings.auth_secure_cookies,
+        "path": "/",
+    }
+
+
+def _current_user(request: Request) -> dict:
+    token = request.cookies.get(settings.auth_cookie_name)
+    user = get_user_by_session(token)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    return user
 
 
 def _json_safe(value):
@@ -49,15 +79,75 @@ async def health():
     return {"status": "ok"}
 
 
+@router.post("/api/auth/login")
+async def login(payload: LoginRequest, response: Response):
+    user = authenticate_user(payload.email.strip(), payload.password)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
+    token = create_session(user["id"])
+    response.set_cookie(settings.auth_cookie_name, token, max_age=7 * 24 * 60 * 60, **_cookie_kwargs())
+    return user
+
+
+@router.post("/api/auth/register")
+async def register(payload: RegisterRequest, response: Response):
+    try:
+        user = create_user(payload.email, payload.password, payload.display_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    token = create_session(user["id"])
+    response.set_cookie(settings.auth_cookie_name, token, max_age=7 * 24 * 60 * 60, **_cookie_kwargs())
+    return user
+
+
+@router.post("/api/auth/logout")
+async def logout(request: Request, response: Response):
+    delete_session(request.cookies.get(settings.auth_cookie_name))
+    response.delete_cookie(settings.auth_cookie_name, path="/")
+    return {"ok": True}
+
+
+@router.get("/api/auth/me")
+async def auth_me(request: Request):
+    token = request.cookies.get(settings.auth_cookie_name)
+    return get_user_by_session(token)
+
+
+@router.get("/api/history")
+async def history(user: dict = Depends(_current_user)):
+    return {"items": list_analysis_runs(user["id"])}
+
+
+@router.get("/api/history/{analysis_id}")
+async def history_item(analysis_id: int, user: dict = Depends(_current_user)):
+    item = get_analysis_run(user["id"], analysis_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    return _json_safe(item)
+
+
+@router.delete("/api/history/{analysis_id}")
+async def delete_history_item(analysis_id: int, user: dict = Depends(_current_user)):
+    if not delete_analysis_run(user["id"], analysis_id):
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    return {"ok": True}
+
+
+@router.delete("/api/history")
+async def clear_history(user: dict = Depends(_current_user)):
+    clear_analysis_runs(user["id"])
+    return {"ok": True}
+
+
 @router.post("/api/genes/validate")
-async def validate_genes(payload: dict):
+async def validate_genes(payload: dict, user: dict = Depends(_current_user)):
     service = GeneValidationService()
     genes = _parse_genes(payload.get("genes", ""))
     return _json_safe(service.validate(genes))
 
 
 @router.get("/api/genes/{symbol}")
-async def gene_profile(symbol: str):
+async def gene_profile(symbol: str, user: dict = Depends(_current_user)):
     service = GeneValidationService()
     profile = service.get_profile(symbol)
     if not profile:
@@ -67,10 +157,12 @@ async def gene_profile(symbol: str):
 
 @router.get("/api/analyze/stream")
 async def analyze_stream(
+    request: Request,
     genes: str = Query(..., description="Gene symbols"),
     disease: str = Query("cancer"),
     pval: float = Query(0.05, ge=0.0, le=1.0),
 ):
+    user = _current_user(request)
     service = GeneValidationService()
     gene_list = service.normalize_genes(_parse_genes(genes))
     if not gene_list:
@@ -110,6 +202,7 @@ async def analyze_stream(
 
                 try:
                     result = task.result()
+                    save_analysis_run(user["id"], result)
                     yield _sse_payload({"event": "result", "data": result})
                 except Exception as e:
                     yield _sse_payload({"event": "error", "message": str(e)})
@@ -121,7 +214,7 @@ async def analyze_stream(
 
 
 @router.post("/api/chat")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(request: ChatRequest, user: dict = Depends(_current_user)):
     if not settings.openai_api_key:
         raise HTTPException(status_code=400, detail="OPENAI_API_KEY is not configured.")
     if not request.result:

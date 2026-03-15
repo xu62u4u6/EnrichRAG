@@ -57,3 +57,28 @@ class ChatRequest(BaseModel):
     query: str = Field(..., description="User's question")
     result: dict = Field(default_factory=dict, description="Full pipeline result payload")
     history: List[dict] = Field(default_factory=list, description="Previous chat messages")
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=1, max_length=100)
+    password: str = Field(..., min_length=1, max_length=200)
+
+
+class RegisterRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=100)
+    password: str = Field(..., min_length=8, max_length=200)
+    display_name: str = Field(..., min_length=1, max_length=120)
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    display_name: str
+
+
+class HistoryItemResponse(BaseModel):
+    id: int
+    disease_context: str
+    gene_count: int
+    input_genes: List[str]
+    created_at: str

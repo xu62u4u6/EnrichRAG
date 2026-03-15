@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     server_host: str = "127.0.0.1"
     server_port: int = 9001
     url_prefix: str = ""
+    auth_db_path: str = str(Path("~/.enrichrag/app/auth_v2.db").expanduser())
+    auth_cookie_name: str = "enrichrag_session"
+    auth_default_email: str = "lab@enrichrag.local"
+    auth_invite_code: str = "enrichrag-invite"
+    auth_default_password: str = "lab-demo-change-me"
+    auth_secure_cookies: bool = False
     query_planning_llm_refine: bool = True
     kg_enabled: bool = True
     kg_db_path: str = str(Path("~/.enrichrag/knowledge_graph/data/knowledge_graph.db").expanduser())
