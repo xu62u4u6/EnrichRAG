@@ -29,9 +29,11 @@
           <div class="auth-logo-mark">
             <img src="img/path1.svg" alt="EnrichRAG logo">
           </div>
-          <h1>EnrichRAG</h1>
+          <div class="auth-brand-copy">
+            <h1>EnrichRAG</h1>
+            <p id="authModeLabel">Augmentation Protocol</p>
+          </div>
         </div>
-        <p id="authModeLabel">Augmentation Protocol</p>
       </div>
       <div class="auth-error" id="authError"></div>
       <form class="auth-form active" id="loginForm">
@@ -54,14 +56,14 @@
       </form>
       <form class="auth-form" id="requestAccessForm">
         <div class="auth-form-inner">
-          <div class="auth-field">
-            <input type="text" id="requestName" placeholder=" " autocomplete="name" required>
-            <label for="requestName">Full Name</label>
-          </div>
-          <div class="auth-field">
-            <input type="email" id="requestEmail" placeholder=" " autocomplete="username" required>
-            <label for="requestEmail">Institutional Email</label>
-          </div>
+        <div class="auth-field">
+          <input type="text" id="requestUsername" placeholder=" " autocomplete="username" required>
+          <label for="requestUsername">Username</label>
+        </div>
+        <div class="auth-field">
+          <input type="email" id="requestEmail" placeholder=" " autocomplete="username" required>
+          <label for="requestEmail">Email</label>
+        </div>
           <div class="auth-field">
             <input type="password" id="requestPassword" class="auth-password-input" placeholder=" "
               autocomplete="new-password" required>

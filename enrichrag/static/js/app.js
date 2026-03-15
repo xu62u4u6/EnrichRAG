@@ -337,7 +337,7 @@ function handleRequestAccessSubmit(event) {
     return;
   }
   api.register({
-    display_name: document.getElementById('requestName').value.trim(),
+    display_name: document.getElementById('requestUsername').value.trim(),
     email: document.getElementById('requestEmail').value.trim(),
     password,
   })
