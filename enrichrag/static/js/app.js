@@ -198,6 +198,9 @@ function initEventHandlers() {
   document.getElementById('disease')?.addEventListener('keydown', handlePrimaryActionKeydown);
   document.getElementById('pval')?.addEventListener('keydown', handlePrimaryActionKeydown);
   document.getElementById('genes')?.addEventListener('keydown', handleGenesKeydown);
+  document.querySelectorAll('.auth-password-toggle').forEach((button) => {
+    button.addEventListener('click', () => togglePasswordVisibility(button));
+  });
   document.addEventListener('keydown', handleGlobalKeydown);
 }
 
@@ -247,6 +250,34 @@ function formatApiError(payload, fallback) {
     if (message) return message;
   }
   return fallback;
+}
+
+function togglePasswordVisibility(button) {
+  const targetId = button.dataset.target;
+  const input = document.getElementById(targetId);
+  if (!input) return;
+  const nextType = input.type === 'password' ? 'text' : 'password';
+  input.type = nextType;
+  button.setAttribute('aria-label', nextType === 'password' ? 'Show password' : 'Hide password');
+  button.innerHTML = nextType === 'password'
+    ? '<i data-lucide="eye"></i>'
+    : '<i data-lucide="eye-off"></i>';
+  lucide.createIcons();
+}
+
+function resetAnalysisForm() {
+  document.getElementById('genes').value = '';
+  document.getElementById('disease').value = 'cancer';
+  document.getElementById('pval').value = '0.05';
+  setCurrentResult(null);
+  resetValidationUI();
+  document.getElementById('navResults').disabled = true;
+}
+
+function formatEnglishDateTime(value) {
+  const date = value ? new Date(value) : new Date();
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 function showAuthShell() {
@@ -299,10 +330,16 @@ async function handleLoginSubmit(event) {
 function handleRequestAccessSubmit(event) {
   event.preventDefault();
   setAuthError('');
+  const password = document.getElementById('requestPassword').value;
+  const confirmPassword = document.getElementById('requestPasswordConfirm').value;
+  if (password !== confirmPassword) {
+    setAuthError('Passwords do not match');
+    return;
+  }
   api.register({
     display_name: document.getElementById('requestName').value.trim(),
     email: document.getElementById('requestEmail').value.trim(),
-    password: document.getElementById('requestPassword').value,
+    password,
   })
     .then(async (response) => {
       if (!response.ok) {
@@ -378,6 +415,9 @@ function handleGlobalKeydown(event) {
 /* ---- Navigation ---- */
 
 function switchView(name) {
+  if (name === 'input' && appState.currentView !== 'input') {
+    resetAnalysisForm();
+  }
   if (name === 'results' && !appState.currentResult && !appState.pipelineRunning) return;
   if (name === 'results' && appState.currentResult) {
     renderResultTabs(appState.currentResult);
@@ -837,7 +877,8 @@ function handlePartialData(data) {
     let subPanelsHtml = '';
     enrichKeys.forEach((k, j) => {
       const subActive = j === 0 ? ' active' : '';
-      subTabsHtml += `<button class="sub-tab-btn${subActive}" data-subtab="enrich-${k}" onclick="switchSubTab('enrichment','enrich-${k}')">${subLabels[k] || k}</button>`;
+      const rowCount = (er[k] || []).length;
+      subTabsHtml += `<button class="sub-tab-btn${subActive}" data-subtab="enrich-${k}" onclick="switchSubTab('enrichment','enrich-${k}')">${subLabels[k] || k} ${rowCount}</button>`;
       subPanelsHtml += `<div class="sub-panel${subActive}" id="subpanel-enrich-${k}"><div class="table-card"><div class="table-wrap">${buildTable(er[k] || [])}</div></div></div>`;
     });
     subTabsHtml += '</div>';
@@ -1203,9 +1244,9 @@ function renderResultTabs(data) {
       // Preserve existing pipeline panel content (with timers)
       const existing = document.getElementById('panel-pipeline');
       if (existing) {
-        panelsHtml += `<div class="tab-panel" id="panel-pipeline">${existing.innerHTML}</div>`;
+        panelsHtml += `<div class="tab-panel active" id="panel-pipeline">${existing.innerHTML}</div>`;
       } else {
-        panelsHtml += `<div class="tab-panel" id="panel-pipeline">${getPipelineHTML()}</div>`;
+        panelsHtml += `<div class="tab-panel active" id="panel-pipeline">${getPipelineHTML()}</div>`;
       }
 
     } else if (tab.key === 'genes') {
@@ -1220,7 +1261,8 @@ function renderResultTabs(data) {
       let subPanelsHtml = '';
       enrichKeys.forEach((k, j) => {
         const subActive = j === 0 ? ' active' : '';
-        subTabsHtml += `<button class="sub-tab-btn${subActive}" data-subtab="enrich-${k}" onclick="switchSubTab('enrichment','enrich-${k}')">${subLabels[k] || k}</button>`;
+        const rowCount = (er[k] || []).length;
+        subTabsHtml += `<button class="sub-tab-btn${subActive}" data-subtab="enrich-${k}" onclick="switchSubTab('enrichment','enrich-${k}')">${subLabels[k] || k} ${rowCount}</button>`;
         subPanelsHtml += `<div class="sub-panel${subActive}" id="subpanel-enrich-${k}"><div class="table-card"><div class="table-wrap">${buildTable(er[k] || [])}</div></div></div>`;
       });
       subTabsHtml += '</div>';
@@ -1265,7 +1307,7 @@ function renderResultTabs(data) {
       }
 
     } else if (tab.key === 'report') {
-      const ts = data.timestamp ? new Date(data.timestamp).toLocaleString() : new Date().toLocaleString();
+      const ts = formatEnglishDateTime(data.timestamp);
       panelsHtml += `<div class="tab-panel${active}" id="panel-${tab.key}">${hasEnrichment
         ? `<div class="report-shell">
             <div class="report-banner">
@@ -1615,21 +1657,84 @@ function sortTableCol(th, colIdx, key) {
 
 function downloadJSON() {
   const currentResult = getCurrentResult();
-  if (!currentResult) return;
+  if (!currentResult) {
+    showToast('No analysis loaded', 2500);
+    return;
+  }
+  const button = document.getElementById('downloadJsonBtn');
   const blob = new Blob([JSON.stringify(currentResult, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `enrichRAG_${currentResult.disease_context || 'result'}_${Date.now()}.json`;
   a.click();
+  if (button) {
+    const original = button.innerHTML;
+    button.innerHTML = '<i data-lucide="check"></i> Downloaded';
+    lucide.createIcons();
+    setTimeout(() => {
+      button.innerHTML = original;
+      lucide.createIcons();
+    }, 1200);
+  }
   showToast('JSON downloaded');
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 function copyReport() {
   const currentResult = getCurrentResult();
-  if (!currentResult) return;
-  navigator.clipboard.writeText(currentResult.llm_insight || '')
-    .then(() => showToast('Report copied'))
-    .catch(() => showToast('Copy failed in this browser context', 3000));
+  if (!currentResult) {
+    showToast('No analysis loaded', 2500);
+    return;
+  }
+  const report = (currentResult.llm_insight || '').trim();
+  if (!report) {
+    showToast('No report to copy', 2500);
+    return;
+  }
+  const button = document.getElementById('copyReportBtn');
+  const onCopied = () => {
+    if (button) {
+      const original = button.innerHTML;
+      button.innerHTML = '<i data-lucide="check"></i> Copied';
+      lucide.createIcons();
+      setTimeout(() => {
+        button.innerHTML = original;
+        lucide.createIcons();
+      }, 1200);
+    }
+    showToast('Report copied');
+  };
+
+  const fallbackCopy = () => {
+    const textarea = document.createElement('textarea');
+    textarea.value = report;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      const ok = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (ok) {
+        onCopied();
+      } else {
+        showToast('Copy failed in this browser context', 3000);
+      }
+    } catch (err) {
+      document.body.removeChild(textarea);
+      showToast('Copy failed in this browser context', 3000);
+    }
+  };
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(report)
+      .then(onCopied)
+      .catch(fallbackCopy);
+    return;
+  }
+
+  fallbackCopy();
 }
 
 /* ---- History ---- */
@@ -1702,7 +1807,7 @@ function renderHistoryList(hist, searchTerm = historySearchTerm) {
   filtered.forEach(({ h, i }) => {
     const genes = h.input_genes || [];
     const disease = h.disease_context || '';
-    const time = new Date(h.created_at).toLocaleString();
+    const time = formatEnglishDateTime(h.created_at);
     const geneText = genes.length ? genes.join(', ') : 'Stored analysis without gene inputs';
     html += `<li class="history-item">
       <button class="history-load-btn" type="button" onclick="loadHistory(${h.id})">
@@ -1799,7 +1904,7 @@ function loadHistory(idx) {
       }
       resetChatSession();
       const currentResult = getCurrentResult();
-      document.getElementById('genes').value = deriveInputGenes(currentResult).join(', ');
+      document.getElementById('genes').value = deriveInputGenes(currentResult).join(' ');
       document.getElementById('disease').value = currentResult.disease_context || '';
       document.getElementById('navResults').disabled = false;
       renderResult(currentResult);

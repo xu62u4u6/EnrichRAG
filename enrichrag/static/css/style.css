@@ -133,7 +133,7 @@ body.drawer-open {
   transform: translate(-50%, -50%);
   width: 100%;
   max-width: 24rem;
-  padding: 3.2rem 2.25rem;
+  padding: 3.2rem 2.1rem;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 24px 60px -32px rgba(16,24,40,.18);
   z-index: 10;
@@ -202,7 +202,13 @@ body.drawer-open {
 }
 
 .auth-form { display: none; }
-.auth-form.active { display: block; }
+.auth-form.active {
+  display: block;
+}
+
+.auth-form-inner {
+  padding-left: 12px;
+}
 
 .auth-field {
   position: relative;
@@ -220,6 +226,34 @@ body.drawer-open {
   transition: border-color .2s;
   border-radius: 0;
   font-family: var(--font-display);
+}
+
+.auth-field .auth-password-input {
+  padding-right: 2rem;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  right: 0;
+  top: 0.38rem;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+}
+
+.auth-password-toggle:hover {
+  color: var(--gray-900);
+}
+
+.auth-password-toggle [data-lucide] {
+  width: 15px;
+  height: 15px;
 }
 
 .auth-field label {
@@ -348,9 +382,10 @@ body.drawer-open {
 .sidebar {
   width: 256px; background: var(--white); border-right: 1px solid var(--gray-200);
   display: flex; flex-direction: column; flex-shrink: 0; position: sticky;
-  top: 0; min-height: 100vh; z-index: 10;
+  top: 0; min-height: 100vh; height: 100vh; align-self: flex-start; z-index: 10;
   border-radius: 18px 0 0 18px;
   box-shadow: 0 2px 10px rgba(16,24,40,.04);
+  overflow: hidden;
 }
 .sidebar-brand {
   padding: 1.25rem; border-bottom: 1px solid var(--gray-100);
