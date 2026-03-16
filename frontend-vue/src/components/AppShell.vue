@@ -33,7 +33,7 @@
         <button class="mobile-toggle" @click="mobileNavOpen = !mobileNavOpen" aria-label="Toggle menu">
           <Menu :size="20" />
         </button>
-        <nav>
+        <nav :class="{ 'mobile-open': mobileNavOpen }">
           <button
             v-for="item in navItems"
             :key="item.id"

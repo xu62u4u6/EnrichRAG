@@ -11,6 +11,7 @@
     border-left: 1px solid var(--color-border);
     border-radius: 18px;
     padding: 1.5rem 1rem 1rem;
+    margin-top: 64px;
   }
 
   .sidebar {
@@ -24,6 +25,7 @@
     border-radius: 0;
     flex-direction: row;
     align-items: center;
+    flex-wrap: wrap;
     padding: 0;
     z-index: 20;
   }
@@ -31,27 +33,70 @@
   .sidebar-brand {
     border-bottom: none;
     padding: 0.75rem 1rem;
+    flex: 1;
+    min-width: 0;
+    order: 1;
   }
 
-  .sidebar-nav {
-    flex-direction: row;
-    overflow-x: auto;
-    padding: 0 0.5rem;
-    gap: 0.25rem;
+  .mobile-toggle {
+    display: flex;
+    order: 2;
   }
 
   .sidebar-footer {
     margin-left: auto;
     border-top: none;
     padding: 0.5rem 1rem;
+    order: 2;
   }
 
-  .mobile-toggle {
+  .sidebar nav {
+    display: none;
+    flex-direction: row;
+    width: 100%;
+    flex-basis: 100%;
+    padding: 0 0.5rem 0.5rem;
+    gap: 0.25rem;
+    border-top: 1px solid var(--gray-100);
+    order: 3;
+  }
+
+  .sidebar nav.mobile-open {
     display: flex;
   }
 
-  .main {
-    margin-top: 64px;
+  .sidebar nav .nav-btn {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.75rem;
+    justify-content: center;
+    flex: 1;
+    width: auto;
+  }
+
+  .sidebar-user {
+    display: none;
+  }
+
+  /* Pipeline — hide desktop canvas, show mobile rail */
+  .pipeline-desktop-map,
+  .pipeline-canvas > .pipe-node {
+    display: none !important;
+  }
+
+  .pipeline-canvas {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0;
+  }
+
+  .pipeline-mobile-rail {
+    display: flex !important;
+    flex-direction: column;
+    gap: 0;
+    max-width: 28rem;
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
   }
 }
 
@@ -93,5 +138,14 @@
 
   .sidebar-footer {
     display: none;
+  }
+
+  .mobile-branch-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-branch-group {
+    margin-left: 26px;
+    padding: 0.7rem 0.7rem 0.25rem;
   }
 }

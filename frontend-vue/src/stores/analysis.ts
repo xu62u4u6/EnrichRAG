@@ -63,6 +63,16 @@ export const useAnalysisStore = defineStore('analysis', {
       this.stream = stream;
       stream.onmessage = async (message) => {
         const payload = JSON.parse(message.data) as ProgressEvent;
+        if (payload.event === 'graph_update') {
+          const graphData = payload.data as { graph: PipelineResult['graph']; phase: string };
+          if (!this.result) {
+            this.result = normalizeResultShape({ graph: graphData.graph } as PipelineResult);
+          } else {
+            this.result = { ...this.result, graph: graphData.graph };
+          }
+          this.progress.push(payload);
+          return;
+        }
         if (payload.event === 'result') {
           const raw = payload.data as PipelineResult;
           if (!raw.gene_validation && this.validation) {

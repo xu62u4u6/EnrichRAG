@@ -184,6 +184,15 @@ def run_pipeline(
         query_plan=query_plan,
     )
 
+    # Phase 1: Local KG graph (before extraction)
+    local_rels = kg_relations_df if kg_relations_df is not None and not kg_relations_df.empty else pd.DataFrame()
+    phase1_graph = build_graph_json(
+        input_genes=genes,
+        enrichment_results=enricher.filtered_results,
+        relations_df=local_rels,
+    )
+    _progress("graph_update", "Local knowledge graph ready", data={"graph": phase1_graph, "phase": "local"})
+
     # 3. Relation Extraction from PubMed abstracts
     relations_df = pd.DataFrame()
     entities_df = pd.DataFrame()
@@ -265,13 +274,14 @@ def run_pipeline(
             insight = f"Error generating insight: {e}"
             _progress("llm", f"LLM generation failed: {e}")
 
-    # 5. Build graph
+    # 5. Build graph (Phase 2: full graph with literature relations)
     graph_json = build_graph_json(
         input_genes=genes,
         enrichment_results=enricher.filtered_results,
         relations_df=relations_df,
         entities_df=entities_df if not entities_df.empty else None,
     )
+    _progress("graph_update", "Full network graph ready", data={"graph": graph_json, "phase": "full"})
 
     # 6. Build result
     result = {
