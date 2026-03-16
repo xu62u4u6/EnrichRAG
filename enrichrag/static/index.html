@@ -66,15 +66,16 @@
         </div>
           <div class="auth-field">
             <input type="password" id="requestPassword" class="auth-password-input" placeholder=" "
-              autocomplete="new-password" required>
+              autocomplete="new-password" minlength="8" required>
             <label for="requestPassword">Password</label>
             <button class="auth-password-toggle" type="button" data-target="requestPassword" aria-label="Show password">
               <i data-lucide="eye"></i>
             </button>
+            <p class="auth-field-hint">At least 8 characters</p>
           </div>
           <div class="auth-field">
             <input type="password" id="requestPasswordConfirm" class="auth-password-input" placeholder=" "
-              autocomplete="new-password" required>
+              autocomplete="new-password" minlength="8" required>
             <label for="requestPasswordConfirm">Confirm Password</label>
             <button class="auth-password-toggle" type="button" data-target="requestPasswordConfirm"
               aria-label="Show password">

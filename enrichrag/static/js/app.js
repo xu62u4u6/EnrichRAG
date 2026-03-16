@@ -332,6 +332,10 @@ function handleRequestAccessSubmit(event) {
   setAuthError('');
   const password = document.getElementById('requestPassword').value;
   const confirmPassword = document.getElementById('requestPasswordConfirm').value;
+  if (password.length < 8) {
+    setAuthError('Password must be at least 8 characters');
+    return;
+  }
   if (password !== confirmPassword) {
     setAuthError('Passwords do not match');
     return;

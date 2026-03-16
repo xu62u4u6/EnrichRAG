@@ -30,15 +30,16 @@
           <label>Email</label>
         </div>
         <div class="auth-field">
-          <input v-model="password" class="auth-password-input" :type="showRegPw ? 'text' : 'password'" placeholder=" " autocomplete="new-password" required />
+          <input v-model="password" class="auth-password-input" :type="showRegPw ? 'text' : 'password'" placeholder=" " autocomplete="new-password" minlength="8" required />
           <label>Password</label>
           <button class="auth-password-toggle" type="button" @click="showRegPw = !showRegPw" aria-label="Show password">
             <EyeOff v-if="showRegPw" :size="18" />
             <Eye v-else :size="18" />
           </button>
+          <p class="auth-field-hint">At least 8 characters</p>
         </div>
         <div class="auth-field">
-          <input v-model="passwordConfirm" class="auth-password-input" :type="showRegPwConfirm ? 'text' : 'password'" placeholder=" " autocomplete="new-password" required />
+          <input v-model="passwordConfirm" class="auth-password-input" :type="showRegPwConfirm ? 'text' : 'password'" placeholder=" " autocomplete="new-password" minlength="8" required />
           <label>Confirm Password</label>
           <button class="auth-password-toggle" type="button" @click="showRegPwConfirm = !showRegPwConfirm" aria-label="Show password">
             <EyeOff v-if="showRegPwConfirm" :size="18" />
@@ -79,6 +80,10 @@ async function submit() {
   }
   if (password.value !== passwordConfirm.value) {
     auth.error = 'Passwords do not match';
+    return;
+  }
+  if (password.value.length < 8) {
+    auth.error = 'Password must be at least 8 characters';
     return;
   }
   await auth.register({
