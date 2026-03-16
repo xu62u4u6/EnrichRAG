@@ -1,6 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
+  /* ---- Core Palette ---- */
   --white: #ffffff;
   --gray-25: #fcfcfd;
   --gray-50: #f9fafb;
@@ -19,12 +20,22 @@
   --teal-600: #0d9488;
   --teal-700: #0f766e;
   --green-50: #f4f8f5;
+  --green-100: #e7efe9;
+  --green-500: #6f9b7d;
   --green-600: #5f8770;
+  --green-700: #4d6f5c;
   --amber-50: #fcf8f1;
+  --amber-100: #f4ead8;
+  --amber-500: #b38a56;
   --amber-600: #9c7748;
+  --amber-700: #7f6039;
   --red-50: #fbf4f3;
+  --red-100: #f3e3e0;
+  --red-500: #b46f68;
   --red-600: #9e5f59;
+  --red-700: #814c47;
 
+  /* ---- Semantic Aliases ---- */
   --color-bg-canvas: var(--gray-50);
   --color-bg-subtle: var(--gray-25);
   --color-surface: rgba(255, 255, 255, 0.86);
@@ -44,6 +55,7 @@
   --color-danger: var(--red-600);
   --color-danger-soft: var(--red-50);
 
+  /* ---- Component Tokens ---- */
   --radius: 8px;
   --radius-lg: 12px;
   --radius-xl: 18px;
@@ -52,6 +64,9 @@
   --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.1), 0 2px 4px -2px rgba(16, 24, 40, 0.06);
   --shadow-lift: 0 8px 24px -4px rgba(16, 24, 40, 0.12), 0 2px 6px -2px rgba(16, 24, 40, 0.06);
   --panel-blur: blur(16px);
+  --btn-height: 40px;
+  --btn-padding-x: 1.05rem;
+  --drawer-width: min(31.25rem, 100vw);
   --font-body: 'Manrope', -apple-system, sans-serif;
   --font-display: 'Source Serif 4', Georgia, serif;
   --font-report: 'Lora', Georgia, serif;

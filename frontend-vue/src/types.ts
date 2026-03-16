@@ -54,6 +54,11 @@ export interface SourceItem {
   source?: string;
   year?: string | number;
   journal?: string;
+  pmid?: string | number;
+  authors?: string[];
+  pub_date?: string;
+  abstract?: string;
+  content?: string;
 }
 
 export interface GraphNode {

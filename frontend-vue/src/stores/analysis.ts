@@ -65,7 +65,11 @@ export const useAnalysisStore = defineStore('analysis', {
       stream.onmessage = async (message) => {
         const payload = JSON.parse(message.data) as ProgressEvent;
         if (payload.event === 'result') {
-          this.result = normalizeResultShape(payload.data as PipelineResult);
+          const raw = payload.data as PipelineResult;
+          if (!raw.gene_validation && this.validation) {
+            raw.gene_validation = this.validation;
+          }
+          this.result = normalizeResultShape(raw);
           this.running = false;
           this.status = 'done';
           stream.close();
@@ -101,6 +105,9 @@ export const useAnalysisStore = defineStore('analysis', {
     setResult(result: PipelineResult | null) {
       this.result = normalizeResultShape(result);
       this.status = result ? 'done' : 'idle';
+      if (result?.gene_validation) {
+        this.validation = result.gene_validation;
+      }
     },
     async openGene(symbol: string) {
       const response = await api.geneProfile(symbol);

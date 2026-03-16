@@ -1,41 +1,87 @@
 <template>
   <transition name="slide">
-    <aside v-if="analysis.activeGeneProfile" class="drawer drawer-gene">
+    <aside v-if="analysis.activeGeneProfile" class="gene-drawer open">
       <div class="drawer-header">
         <div>
-          <p class="eyebrow">Gene profile</p>
+          <div class="drawer-kicker">Gene Profile</div>
           <h3>{{ analysis.activeGeneProfile.canonical_symbol }}</h3>
         </div>
-        <button class="ghost-button" @click="analysis.closeGene()">Close</button>
+        <button class="drawer-close" @click="analysis.closeGene()" aria-label="Close gene info">
+          <X :size="18" />
+        </button>
       </div>
-      <dl class="gene-grid">
-        <template v-for="(value, key) in details" :key="key">
-          <dt>{{ key }}</dt>
-          <dd>{{ value }}</dd>
-        </template>
-      </dl>
+      <div class="drawer-body">
+        <div class="drawer-section">
+          <div class="drawer-grid">
+            <div class="drawer-field">
+              <label>Symbol</label>
+              <div class="drawer-field-value">{{ profile.canonical_symbol || '—' }}</div>
+            </div>
+            <div class="drawer-field">
+              <label>Gene ID</label>
+              <div class="drawer-field-value mono">{{ profile.gene_id || '—' }}</div>
+            </div>
+            <div class="drawer-field">
+              <label>Official Symbol</label>
+              <div class="drawer-field-value">{{ profile.official_symbol || '—' }}</div>
+            </div>
+            <div class="drawer-field">
+              <label>Gene Type</label>
+              <div class="drawer-field-value">{{ profile.type_of_gene || '—' }}</div>
+            </div>
+            <div class="drawer-field">
+              <label>Chromosome</label>
+              <div class="drawer-field-value">{{ profile.chromosome || '—' }}</div>
+            </div>
+            <div class="drawer-field">
+              <label>Map Location</label>
+              <div class="drawer-field-value">{{ profile.map_location || '—' }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="drawer-section">
+          <div class="drawer-field drawer-field-full">
+            <label>Official Name</label>
+            <div class="drawer-field-value">{{ profile.official_full_name || '—' }}</div>
+          </div>
+          <div class="drawer-field drawer-field-full">
+            <label>Description</label>
+            <div class="drawer-field-value">{{ profile.description || '—' }}</div>
+          </div>
+          <div class="drawer-field drawer-field-full">
+            <label>Synonyms</label>
+            <div class="drawer-field-value mono">{{ profile.synonyms || '—' }}</div>
+          </div>
+          <div class="drawer-field drawer-field-full">
+            <label>dbXrefs</label>
+            <div class="drawer-field-value mono">{{ profile.dbxrefs || '—' }}</div>
+          </div>
+          <div class="drawer-field drawer-field-full">
+            <label>Last Updated</label>
+            <div class="drawer-field-value mono">{{ profile.modification_date || '—' }}</div>
+          </div>
+        </div>
+        <div v-if="profile.gene_id" class="drawer-section">
+          <a
+            class="drawer-link"
+            :href="`https://www.ncbi.nlm.nih.gov/gene?Db=gene&Cmd=DetailsSearch&Term=${encodeURIComponent(profile.gene_id)}`"
+            target="_blank"
+            rel="noopener"
+          >
+            <ExternalLink :size="14" /> Open in NCBI Gene
+          </a>
+        </div>
+      </div>
     </aside>
   </transition>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { X, ExternalLink } from 'lucide-vue-next';
 import { useAnalysisStore } from '../stores/analysis';
 
 const analysis = useAnalysisStore();
 
-const details = computed(() => {
-  const profile = analysis.activeGeneProfile;
-  if (!profile) return {};
-  return {
-    Symbol: profile.official_symbol || profile.canonical_symbol,
-    Name: profile.official_full_name || '—',
-    Description: profile.description || '—',
-    Synonyms: profile.synonyms || '—',
-    Chromosome: profile.chromosome || '—',
-    MapLocation: profile.map_location || '—',
-    GeneID: profile.gene_id || '—',
-    Type: profile.type_of_gene || '—',
-  };
-});
+const profile = computed(() => analysis.activeGeneProfile || ({} as NonNullable<typeof analysis.activeGeneProfile>));
 </script>
