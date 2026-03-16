@@ -74,8 +74,11 @@ export interface GraphEdge {
   source: string | GraphNode;
   target: string | GraphNode;
   relation?: string;
+  relation_group?: string;
   type?: string;
   source_db?: string;
+  evidence?: string;
+  pmid?: string;
 }
 
 export interface PipelineResult {

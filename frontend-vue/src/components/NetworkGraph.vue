@@ -19,26 +19,62 @@ const emit = defineEmits<{
 const container = ref<HTMLDivElement | null>(null);
 let simulation: d3.Simulation<SimNode, SimLink> | null = null;
 
-type SimNode = d3.SimulationNodeDatum & GraphNode & { id: string };
+type SimNode = d3.SimulationNodeDatum & GraphNode & { id: string; degree: number };
 type SimLink = d3.SimulationLinkDatum<SimNode> & {
   source: string | SimNode;
   target: string | SimNode;
   type?: string;
+  source_db?: string;
 };
 
 function getNodeId(node: GraphNode) {
   return node.id || node.label || node.name || 'node';
 }
 
-const typeColor: Record<string, string> = {
-  gene: '#344054', go: '#667085', kegg: '#667085',
-  disease: '#98a2b3', drug: '#98a2b3', pathway: '#667085', other: '#d0d5dd',
+/* ── Node visual config by type ── */
+
+const nodeColor: Record<string, string> = {
+  gene: '#1e293b',     // dark slate — primary entity
+  go: '#6366f1',       // indigo — GO terms
+  kegg: '#8b5cf6',     // violet — KEGG
+  disease: '#ef4444',  // red — diseases
+  drug: '#f59e0b',     // amber — drugs
+  pathway: '#8b5cf6',  // violet — pathways
+  other: '#94a3b8',    // gray
+};
+
+const nodeColorLight: Record<string, string> = {
+  gene: '#475569',
+  go: '#a5b4fc',
+  kegg: '#c4b5fd',
+  disease: '#fca5a5',
+  drug: '#fcd34d',
+  pathway: '#c4b5fd',
+  other: '#cbd5e1',
 };
 
 const typeRadius: Record<string, number> = {
   gene: 7, go: 5, kegg: 5,
   disease: 6, drug: 6, pathway: 5, other: 4,
 };
+
+/* ── Edge visual config ── */
+
+function edgeColor(d: SimLink): string {
+  if (d.type === 'enrichment') return '#94a3b8';
+  const db = (d.source_db || '').toLowerCase();
+  if (db === 'reactome' || db === 'kegg' || db === 'string') return '#3b82f6'; // blue — local KG
+  return '#f59e0b'; // amber — literature
+}
+
+function edgeOpacity(d: SimLink): number {
+  if (d.type === 'enrichment') return 0.35;
+  return 0.55;
+}
+
+/* ── Label visibility: top N by degree ── */
+
+const LABEL_TOP_N = 15;
 
 function render() {
   const element = container.value;
@@ -57,27 +93,57 @@ function render() {
   const g = svg.append('g');
   const zoom = d3.zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.3, 5])
-    .on('zoom', (event) => { g.attr('transform', event.transform); });
+    .on('zoom', (event) => {
+      g.attr('transform', event.transform);
+      // Semantic zoom: show more labels when zoomed in
+      const k = event.transform.k;
+      nodeText.style('display', (d: SimNode) => {
+        if ((d as { is_input?: boolean }).is_input) return 'block';
+        if (k >= 1.5) return 'block'; // show all when zoomed in
+        return d.degree >= degreeCutoff ? 'block' : 'none';
+      });
+    });
   svg.call(zoom);
 
   // Arrow markers
   const defs = svg.append('defs');
-  ['relation', 'enrichment'].forEach(t => {
+  const markerDefs = [
+    { id: 'arrow-lit', fill: '#f59e0b' },
+    { id: 'arrow-kg', fill: '#3b82f6' },
+  ];
+  markerDefs.forEach(({ id, fill }) => {
     defs.append('marker')
-      .attr('id', 'arrow-' + t).attr('viewBox', '0 -4 8 8')
+      .attr('id', id).attr('viewBox', '0 -4 8 8')
       .attr('refX', 20).attr('refY', 0)
       .attr('markerWidth', 6).attr('markerHeight', 6)
       .attr('orient', 'auto')
       .append('path').attr('d', 'M0,-3L7,0L0,3')
-      .attr('fill', t === 'relation' ? '#98a2b3' : '#d0d5dd');
+      .attr('fill', fill).attr('fill-opacity', 0.7);
   });
 
-  const nodes: SimNode[] = props.nodes.map((node) => ({ ...node, id: getNodeId(node) }));
+  // Compute degree for each node
+  const degreeMap = new Map<string, number>();
+  props.edges.forEach((edge) => {
+    const src = typeof edge.source === 'string' ? edge.source : getNodeId(edge.source as GraphNode);
+    const tgt = typeof edge.target === 'string' ? edge.target : getNodeId(edge.target as GraphNode);
+    degreeMap.set(src, (degreeMap.get(src) || 0) + 1);
+    degreeMap.set(tgt, (degreeMap.get(tgt) || 0) + 1);
+  });
+
+  const nodes: SimNode[] = props.nodes.map((node) => ({
+    ...node,
+    id: getNodeId(node),
+    degree: degreeMap.get(getNodeId(node)) || 0,
+  }));
   const links: SimLink[] = props.edges.map((edge) => ({
     ...edge,
     source: typeof edge.source === 'string' ? edge.source : getNodeId(edge.source as GraphNode),
     target: typeof edge.target === 'string' ? edge.target : getNodeId(edge.target as GraphNode),
   }));
+
+  // Degree cutoff for label visibility
+  const sortedDegrees = nodes.map((n) => n.degree).sort((a, b) => b - a);
+  const degreeCutoff = sortedDegrees[Math.min(LABEL_TOP_N, sortedDegrees.length - 1)] || 0;
 
   simulation = d3
     .forceSimulation<SimNode>(nodes)
@@ -88,10 +154,15 @@ function render() {
 
   const link = g.append('g')
     .selectAll('line').data(links).join('line')
-    .attr('stroke', (d: SimLink) => d.type === 'relation' ? '#98a2b3' : '#e4e7ec')
+    .attr('stroke', edgeColor)
+    .attr('stroke-opacity', edgeOpacity)
     .attr('stroke-width', (d: SimLink) => d.type === 'relation' ? 1.2 : 0.8)
     .attr('stroke-dasharray', (d: SimLink) => d.type === 'enrichment' ? '3,3' : 'none')
-    .attr('marker-end', (d: SimLink) => d.type === 'relation' ? 'url(#arrow-relation)' : '');
+    .attr('marker-end', (d: SimLink) => {
+      if (d.type !== 'relation') return '';
+      const db = (d.source_db || '').toLowerCase();
+      return (db === 'reactome' || db === 'kegg' || db === 'string') ? 'url(#arrow-kg)' : 'url(#arrow-lit)';
+    });
 
   const node = g.append('g')
     .selectAll<SVGGElement, SimNode>('g').data(nodes).join('g')
@@ -102,13 +173,20 @@ function render() {
     );
 
   node.append('circle')
-    .attr('r', (d: SimNode) => (d as { is_input?: boolean }).is_input ? (typeRadius[d.type || ''] || 5) + 2 : (typeRadius[d.type || ''] || 5))
-    .attr('fill', (d: SimNode) => (d as { is_input?: boolean }).is_input ? '#101828' : (typeColor[d.type || ''] || '#d0d5dd'))
-    .attr('stroke', (d: SimNode) => (d as { is_input?: boolean }).is_input ? '#101828' : '#e4e7ec')
+    .attr('r', (d: SimNode) => {
+      const base = typeRadius[d.type || ''] || 5;
+      return (d as { is_input?: boolean }).is_input ? base + 2 : base;
+    })
+    .attr('fill', (d: SimNode) => {
+      const isInput = (d as { is_input?: boolean }).is_input;
+      return isInput ? (nodeColor[d.type || ''] || '#1e293b') : (nodeColorLight[d.type || ''] || '#cbd5e1');
+    })
+    .attr('stroke', (d: SimNode) => nodeColor[d.type || ''] || '#94a3b8')
     .attr('stroke-width', (d: SimNode) => (d as { is_input?: boolean }).is_input ? 2 : 1)
+    .attr('stroke-opacity', 0.6)
     .style('cursor', 'pointer');
 
-  node.append('text')
+  const nodeText = node.append('text')
     .text((d: SimNode) => d.label || d.id)
     .attr('x', 0)
     .attr('y', (d: SimNode) => -(typeRadius[d.type || ''] || 5) - 5)
@@ -116,8 +194,12 @@ function render() {
     .attr('font-size', (d: SimNode) => d.type === 'gene' ? '9px' : '8px')
     .attr('font-family', 'Manrope, sans-serif')
     .attr('font-weight', (d: SimNode) => (d as { is_input?: boolean }).is_input ? '700' : '500')
-    .attr('fill', (d: SimNode) => (d as { is_input?: boolean }).is_input ? '#101828' : '#98a2b3')
-    .style('pointer-events', 'none');
+    .attr('fill', (d: SimNode) => nodeColor[d.type || ''] || '#64748b')
+    .style('pointer-events', 'none')
+    .style('display', (d: SimNode) => {
+      if ((d as { is_input?: boolean }).is_input) return 'block';
+      return d.degree >= degreeCutoff ? 'block' : 'none';
+    });
 
   // Hover highlight
   node.on('mouseover', function (_e: MouseEvent, d: SimNode) {
@@ -129,15 +211,22 @@ function render() {
       if (src === d.id) connected.add(tgt);
       if (tgt === d.id) connected.add(src);
     });
-    node.style('opacity', (n: SimNode) => connected.has(n.id) ? 1 : 0.15);
+    node.style('opacity', (n: SimNode) => connected.has(n.id) ? 1 : 0.12);
+    // Show label for hovered node and its neighbors
+    nodeText.style('display', (n: SimNode) => connected.has(n.id) ? 'block' : 'none');
     link.style('opacity', (l: SimLink) => {
       const src = typeof l.source === 'object' ? (l.source as SimNode).id : l.source;
       const tgt = typeof l.target === 'object' ? (l.target as SimNode).id : l.target;
-      return (src === d.id || tgt === d.id) ? 1 : 0.06;
+      return (src === d.id || tgt === d.id) ? 1 : 0.04;
     });
   }).on('mouseout', function () {
     node.style('opacity', 1);
-    link.style('opacity', 1);
+    link.style('opacity', (d: SimLink) => edgeOpacity(d));
+    // Restore label visibility
+    nodeText.style('display', (d: SimNode) => {
+      if ((d as { is_input?: boolean }).is_input) return 'block';
+      return d.degree >= degreeCutoff ? 'block' : 'none';
+    });
   });
 
   // Click
@@ -153,6 +242,51 @@ function render() {
       .attr('y2', (d: SimLink) => (d.target as SimNode).y || 0);
     node.attr('transform', (d: SimNode) => `translate(${d.x},${d.y})`);
   });
+
+  // ── Legend (fixed position, outside zoom group) ──
+  renderLegend(element, width, height);
+}
+
+function renderLegend(container: HTMLDivElement, _width: number, _height: number) {
+  // Remove old legend if re-rendering
+  container.querySelector('.graph-legend')?.remove();
+
+  const el = document.createElement('div');
+  el.className = 'graph-legend';
+
+  const edgeItems = [
+    { label: 'Literature', color: '#f59e0b', dash: false },
+    { label: 'Local KG', color: '#3b82f6', dash: false },
+    { label: 'Enrichment', color: '#94a3b8', dash: true },
+  ];
+
+  const nodeItems = [
+    { label: 'Gene', color: '#1e293b' },
+    { label: 'Disease', color: '#ef4444' },
+    { label: 'Drug', color: '#f59e0b' },
+    { label: 'GO/KEGG', color: '#6366f1' },
+  ];
+
+  let html = '';
+  for (const item of edgeItems) {
+    const style = item.dash
+      ? `border-top: 2px dashed ${item.color}`
+      : `border-top: 2px solid ${item.color}`;
+    html += `<div class="graph-legend-item">
+      <span class="graph-legend-line" style="${style}"></span>
+      <span>${item.label}</span>
+    </div>`;
+  }
+  html += '<div class="graph-legend-sep"></div>';
+  for (const item of nodeItems) {
+    html += `<div class="graph-legend-item">
+      <span class="graph-legend-dot" style="background:${item.color}"></span>
+      <span>${item.label}</span>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+  container.appendChild(el);
 }
 
 onMounted(render);

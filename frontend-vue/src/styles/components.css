@@ -1272,6 +1272,61 @@ td.cell-overlap {
 /* ---- Graph ---- */
 .graph-canvas {
   min-height: 420px;
+  position: relative;
+}
+
+.graph-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, var(--gray-300) 0.8px, transparent 0.8px);
+  background-size: 16px 16px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* Graph legend (HTML overlay, fixed in corner) */
+.graph-legend {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 9px;
+  font-family: Manrope, sans-serif;
+  color: #64748b;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.graph-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.6;
+}
+
+.graph-legend-line {
+  display: inline-block;
+  width: 16px;
+  height: 0;
+  flex-shrink: 0;
+}
+
+.graph-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.graph-legend-sep {
+  border-top: 1px solid var(--gray-200);
+  margin: 4px 0;
 }
 
 .network-tab-card {
@@ -1286,6 +1341,192 @@ td.cell-overlap {
 .graph-stats {
   display: inline-flex;
   margin-bottom: 1rem;
+}
+
+/* Preset toolbar */
+.preset-toolbar {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.preset-btn {
+  padding: 0.4rem 0.9rem;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--gray-200);
+  border-radius: 5px;
+  background: var(--white);
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-btn:hover {
+  border-color: var(--gray-400);
+  color: var(--gray-700);
+}
+
+.preset-btn.active {
+  background: #1e293b;
+  color: var(--white);
+  border-color: #1e293b;
+}
+
+/* Accordion filter sections */
+.filter-accordion {
+  border-top: 1px solid var(--gray-100);
+  margin-bottom: 0.5rem;
+}
+
+.filter-section {
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.filter-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.filter-section-header:hover {
+  color: var(--gray-700);
+}
+
+.filter-section-left {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.filter-section-caret {
+  display: inline-block;
+  font-size: 9px;
+  color: var(--gray-400);
+  transition: transform 0.15s ease;
+  width: 10px;
+}
+
+.filter-section-caret.open {
+  transform: rotate(90deg);
+}
+
+.filter-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gray-500);
+}
+
+.filter-section-summary {
+  font-size: 10px;
+  color: var(--gray-400);
+  font-weight: 500;
+  max-width: 60%;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-section-body {
+  padding: 0 0 0.6rem 14px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.filter-row-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gray-400);
+  min-width: 44px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.filter-row .sub-tabs {
+  margin-bottom: 0;
+}
+
+/* Reset button */
+.reset-btn {
+  padding: 0.25rem 0.6rem;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  background: var(--white);
+  color: var(--gray-500);
+  cursor: pointer;
+}
+
+.reset-btn:hover {
+  border-color: var(--gray-400);
+  color: var(--gray-700);
+}
+
+/* Graph status bar */
+.graph-status-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Hierarchical relation groups */
+.relation-group {
+  margin-bottom: 0.4rem;
+}
+
+.relation-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.relation-expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.2rem;
+  color: var(--gray-400);
+  font-size: 9px;
+}
+
+.relation-expand-btn:hover {
+  color: var(--gray-600);
+}
+
+.relation-subtypes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.35rem 0 0.2rem 1rem;
+}
+
+.sub-tab-btn-sm {
+  padding: 0.2rem 0.55rem;
+  font-size: 10px;
+}
+
+.sub-tab-btn.partial {
+  background: var(--gray-100);
+  color: var(--gray-700);
+  border-color: var(--gray-400);
 }
 
 /* ---- Toast ---- */
@@ -1392,9 +1633,9 @@ td.cell-overlap {
 }
 
 .sub-tab-btn.active {
-  background: var(--gray-900);
+  background: #334155;
   color: var(--white);
-  border-color: var(--gray-900);
+  border-color: #334155;
 }
 
 .sub-panel {
