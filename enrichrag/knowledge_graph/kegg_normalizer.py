@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from enrichrag.knowledge_graph.build_gene_map import load_gene_map
+from enrichrag.knowledge_graph.relation_taxonomy import normalize_kegg as _norm_rel
 
 logger = logging.getLogger(__name__)
 
@@ -58,24 +59,24 @@ def normalize_kegg(
                 src_genes = entries.get(relation.attrib.get("entry1", ""), [])
                 tgt_genes = entries.get(relation.attrib.get("entry2", ""), [])
                 subtype_el = relation.find("subtype")
-                subtype_name = (
+                raw_subtype = (
                     subtype_el.attrib.get("name", "association")
                     if subtype_el is not None
                     else "association"
                 )
+                relation = _norm_rel(raw_subtype)
                 metadata = json.dumps(
-                    {"pathway": pathway_name, "subtype": subtype_name},
+                    {"pathway": pathway_name, "subtype": raw_subtype},
                     ensure_ascii=False,
                 )
 
                 for src in src_genes:
-                    # Validate via gene_map, fall back to raw symbol
                     canonical_src = gene_map.get(src, src)
                     for tgt in tgt_genes:
                         canonical_tgt = gene_map.get(tgt, tgt)
                         fout.write(
-                            f"{canonical_src}\tgene\t{canonical_tgt}\tgene\t{subtype_name}\t"
-                            f"KEGG {pathway_name}: {subtype_name}\t\tkegg\t1.0\t{metadata}\n"
+                            f"{canonical_src}\tgene\t{canonical_tgt}\tgene\t{relation}\t"
+                            f"KEGG {pathway_name}: {raw_subtype}\t\tkegg\t1.0\t{metadata}\n"
                         )
                         count += 1
 

@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 
 from enrichrag.knowledge_graph.build_gene_map import load_gene_map
+from enrichrag.knowledge_graph.relation_taxonomy import normalize_reactome as _norm_rel
 
 logger = logging.getLogger(__name__)
 
@@ -55,15 +56,20 @@ def normalize_reactome(
             sym1 = gene_map.get(gene1, gene1)
             sym2 = gene_map.get(gene2, gene2)
 
-            relation = annotation if annotation else "interact"
+            raw_relation = annotation if annotation else ""
+            relation = _norm_rel(raw_relation)
             try:
                 score_val = float(score)
             except ValueError:
                 score_val = 1.0
 
-            metadata = "{}"
+            metadata_parts = []
             if direction:
-                metadata = f'{{"direction": "{direction}"}}'
+                metadata_parts.append(f'"direction": "{direction}"')
+            if raw_relation and raw_relation != relation:
+                safe_raw = raw_relation.replace('"', '\\"')
+                metadata_parts.append(f'"raw_relation": "{safe_raw}"')
+            metadata = "{" + ", ".join(metadata_parts) + "}"
 
             fout.write(
                 f"{sym1}\tgene\t{sym2}\tgene\t{relation}\t"

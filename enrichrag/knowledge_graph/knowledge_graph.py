@@ -8,6 +8,7 @@ from typing import Iterable
 import pandas as pd
 
 from enrichrag.knowledge_graph.base import KnowledgeGraphDB
+from enrichrag.knowledge_graph.relation_taxonomy import normalize, get_group
 
 
 class KnowledgeGraph:
@@ -75,6 +76,12 @@ class KnowledgeGraph:
         """
 
         df = self._query(sql, params)
+        # Normalize relations from legacy data
+        if not df.empty:
+            df["relation"] = df.apply(
+                lambda r: normalize(r["relation"], r.get("source_db", "")), axis=1
+            )
+            df["relation_group"] = df["relation"].map(get_group)
         dedup_cols = ["source", "target", "relation", "pmid", "source_db"]
         df = df.drop_duplicates(subset=dedup_cols, keep="first")
 

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from enrichrag.knowledge_graph.build_gene_map import load_gene_map
 from enrichrag.knowledge_graph.progress import ProgressEvent, ProgressReporter
+from enrichrag.knowledge_graph.relation_taxonomy import normalize_pubtator as _norm_rel
 
 logger = logging.getLogger(__name__)
 
@@ -80,9 +81,11 @@ def normalize_pubtator(
             name1, type1 = parsed1
             name2, type2 = parsed2
 
+            relation = _norm_rel(relation_type)
+            metadata = "{}" if relation == relation_type else f'{{"raw_relation": "{relation_type}"}}'
             fout.write(
-                f"{name1}\t{type1}\t{name2}\t{type2}\t{relation_type}\t"
-                f"PubTator relation\tPMID:{pmid}\tpubtator\t1.0\t{{}}\n"
+                f"{name1}\t{type1}\t{name2}\t{type2}\t{relation}\t"
+                f"PubTator relation\tPMID:{pmid}\tpubtator\t1.0\t{metadata}\n"
             )
             count += 1
 

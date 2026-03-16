@@ -4,6 +4,8 @@ from typing import Dict, List
 
 import pandas as pd
 
+from enrichrag.knowledge_graph.relation_taxonomy import get_group, normalize
+
 
 def build_graph_json(
     input_genes: List[str],
@@ -128,14 +130,17 @@ def build_graph_json(
                     "is_input": tgt_name in input_genes,
                 }
 
+            source_db = row.get("source_db", "")
+            norm_relation = normalize(relation, source_db)
             edges.append({
                 "source": src_id,
                 "target": tgt_id,
                 "type": "relation",
-                "relation": relation,
+                "relation": norm_relation,
+                "relation_group": get_group(norm_relation),
                 "evidence": evidence,
                 "pmid": pmid,
-                "source_db": row.get("source_db", ""),
+                "source_db": source_db,
             })
 
     # Deduplicate edges
