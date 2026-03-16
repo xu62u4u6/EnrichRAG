@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import * as d3 from 'd3';
-import { onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { GraphEdge, GraphNode } from '../types';
 
 const props = defineProps<{
@@ -13,10 +13,11 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  nodeClick: [symbol: string];
+  nodeClick: [node: GraphNode];
 }>();
 
 const container = ref<HTMLDivElement | null>(null);
+let simulation: d3.Simulation<SimNode, SimLink> | null = null;
 
 type SimNode = d3.SimulationNodeDatum & GraphNode & { id: string };
 type SimLink = d3.SimulationLinkDatum<SimNode> & {
@@ -42,6 +43,7 @@ const typeRadius: Record<string, number> = {
 function render() {
   const element = container.value;
   if (!element) return;
+  simulation?.stop();
   element.innerHTML = '';
 
   const width = element.clientWidth || 900;
@@ -77,7 +79,7 @@ function render() {
     target: typeof edge.target === 'string' ? edge.target : getNodeId(edge.target as GraphNode),
   }));
 
-  const simulation = d3
+  simulation = d3
     .forceSimulation<SimNode>(nodes)
     .force('link', d3.forceLink<SimNode, SimLink>(links).id((d: SimNode) => d.id).distance(80))
     .force('charge', d3.forceManyBody().strength(-120))
@@ -94,9 +96,9 @@ function render() {
   const node = g.append('g')
     .selectAll<SVGGElement, SimNode>('g').data(nodes).join('g')
     .call(d3.drag<SVGGElement, SimNode>()
-      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('start', (e, d) => { if (!e.active) simulation?.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
       .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+      .on('end', (e, d) => { if (!e.active) simulation?.alphaTarget(0); d.fx = null; d.fy = null; })
     );
 
   node.append('circle')
@@ -140,7 +142,7 @@ function render() {
 
   // Click
   node.on('click', function (_e: MouseEvent, d: SimNode) {
-    emit('nodeClick', d.id);
+    emit('nodeClick', d);
   });
 
   simulation.on('tick', () => {
@@ -155,4 +157,8 @@ function render() {
 
 onMounted(render);
 watch(() => [props.nodes, props.edges], render, { deep: true });
+onBeforeUnmount(() => {
+  simulation?.stop();
+  simulation = null;
+});
 </script>

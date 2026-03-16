@@ -35,6 +35,35 @@ export function formatDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
+export function formatPval(value: unknown) {
+  if (value == null) return '—';
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) return String(value);
+  return numeric < 0.001 ? numeric.toExponential(2) : parseFloat(numeric.toFixed(4)).toString();
+}
+
+export function sigClass(row: { p_adjusted?: number; p_value?: number }) {
+  const pValue = row.p_adjusted ?? row.p_value ?? 1;
+  if (pValue < 0.001) return 'sig-high';
+  if (pValue < 0.01) return 'sig-mid';
+  return '';
+}
+
+export function formatTimestamp(timestamp: string | null | undefined) {
+  if (!timestamp) return '';
+  try {
+    return new Date(timestamp).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return timestamp;
+  }
+}
+
 export function titleCase(value: string) {
   return value
     .replace(/[_-]+/g, ' ')

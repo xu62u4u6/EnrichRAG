@@ -1,12 +1,12 @@
 <template>
   <transition name="slide">
-    <aside v-if="analysis.activeGeneProfile" class="gene-drawer open">
+    <aside v-if="geneDrawer.activeGeneProfile" class="gene-drawer open">
       <div class="drawer-header">
         <div>
           <div class="drawer-kicker">Gene Profile</div>
-          <h3>{{ analysis.activeGeneProfile.canonical_symbol }}</h3>
+          <h3>{{ geneDrawer.activeGeneProfile.canonical_symbol }}</h3>
         </div>
-        <button class="drawer-close" @click="analysis.closeGene()" aria-label="Close gene info">
+        <button class="drawer-close" @click="geneDrawer.closeGene()" aria-label="Close gene info">
           <X :size="18" />
         </button>
       </div>
@@ -79,9 +79,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { X, ExternalLink } from 'lucide-vue-next';
-import { useAnalysisStore } from '../stores/analysis';
+import { useGeneDrawerStore } from '../stores/geneDrawer';
 
-const analysis = useAnalysisStore();
+const geneDrawer = useGeneDrawerStore();
 
-const profile = computed(() => analysis.activeGeneProfile || ({} as NonNullable<typeof analysis.activeGeneProfile>));
+const profile = computed(() => geneDrawer.activeGeneProfile || ({} as NonNullable<typeof geneDrawer.activeGeneProfile>));
 </script>

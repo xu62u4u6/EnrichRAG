@@ -135,6 +135,7 @@ def build_graph_json(
                 "relation": relation,
                 "evidence": evidence,
                 "pmid": pmid,
+                "source_db": row.get("source_db", ""),
             })
 
     # Deduplicate edges

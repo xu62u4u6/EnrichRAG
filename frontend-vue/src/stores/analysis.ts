@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { GeneProfile, PipelineResult, ValidationResponse } from '../types';
+import type { PipelineResult, ValidationResponse } from '../types';
 import { api } from '../utils/api';
 import { normalizeResultShape } from '../utils/format';
 import { useHistoryStore } from './history';
@@ -22,7 +22,6 @@ export const useAnalysisStore = defineStore('analysis', {
     stream: null as EventSource | null,
     status: 'idle' as 'idle' | 'validating' | 'running' | 'done' | 'error',
     error: '',
-    activeGeneProfile: null as GeneProfile | null,
   }),
   getters: {
     canRun: (state) => Boolean(state.validation?.normalized_genes?.length) && !state.running,
@@ -108,14 +107,6 @@ export const useAnalysisStore = defineStore('analysis', {
       if (result?.gene_validation) {
         this.validation = result.gene_validation;
       }
-    },
-    async openGene(symbol: string) {
-      const response = await api.geneProfile(symbol);
-      this.activeGeneProfile = await api.parseJson<GeneProfile>(response);
-      return this.activeGeneProfile;
-    },
-    closeGene() {
-      this.activeGeneProfile = null;
     },
   },
 });

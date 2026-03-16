@@ -1274,6 +1274,20 @@ td.cell-overlap {
   min-height: 420px;
 }
 
+.network-tab-card {
+  padding: 0;
+  position: relative;
+}
+
+.network-tab-controls {
+  padding: 1rem 1rem 0;
+}
+
+.graph-stats {
+  display: inline-flex;
+  margin-bottom: 1rem;
+}
+
 /* ---- Toast ---- */
 .toast {
   position: fixed;

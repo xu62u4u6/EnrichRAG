@@ -66,7 +66,7 @@
         </div>
       </div>
 
-      <div v-if="chat.open || analysis.activeGeneProfile" class="drawer-backdrop" @click="closeAllDrawers"></div>
+      <div v-if="chat.open || geneDrawer.activeGeneProfile" class="drawer-backdrop" @click="closeAllDrawers"></div>
       <ChatDrawer />
       <GeneDrawer />
       <transition name="fade">
@@ -82,6 +82,7 @@ import { Dna, LayoutDashboard, History, LogOut, Menu } from 'lucide-vue-next';
 import { useAnalysisStore } from '../stores/analysis';
 import { useAuthStore } from '../stores/auth';
 import { useChatStore } from '../stores/chat';
+import { useGeneDrawerStore } from '../stores/geneDrawer';
 import { useHistoryStore } from '../stores/history';
 import { useUiStore } from '../stores/ui';
 import AnalysisForm from './AnalysisForm.vue';
@@ -96,6 +97,7 @@ const ui = useUiStore();
 const history = useHistoryStore();
 const analysis = useAnalysisStore();
 const chat = useChatStore();
+const geneDrawer = useGeneDrawerStore();
 const mobileNavOpen = ref(false);
 
 const navItems = [
@@ -109,7 +111,7 @@ const usernameHandle = computed(() => (auth.user?.email || 'lab').split('@')[0])
 
 function closeAllDrawers() {
   chat.open = false;
-  analysis.closeGene();
+  geneDrawer.closeGene();
 }
 
 async function handleLogout() {
