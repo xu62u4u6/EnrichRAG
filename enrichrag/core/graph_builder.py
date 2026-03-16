@@ -1,10 +1,20 @@
 """Build a graph JSON structure from enrichment results and extracted relations."""
 
+import math
 from typing import Dict, List
 
 import pandas as pd
 
 from enrichrag.knowledge_graph.relation_taxonomy import get_group, normalize
+
+
+def _clean_scalar(value: object, default: str = "") -> str:
+    if value is None:
+        return default
+    if isinstance(value, float) and not math.isfinite(value):
+        return default
+    text = str(value).strip()
+    return text if text and text.lower() != "nan" else default
 
 
 def build_graph_json(
@@ -104,13 +114,16 @@ def build_graph_json(
     # --- Relation edges ---
     if not relations_df.empty:
         for _, row in relations_df.iterrows():
-            src_name = row.get("source", "")
-            src_type = row.get("source_type", "gene")
-            tgt_name = row.get("target", "")
-            tgt_type = row.get("target_type", "gene")
-            relation = row.get("relation", "associate")
-            evidence = row.get("evidence", "")
-            pmid = row.get("pmid", "")
+            src_name = _clean_scalar(row.get("source", ""))
+            src_type = _clean_scalar(row.get("source_type", "gene"), "gene")
+            tgt_name = _clean_scalar(row.get("target", ""))
+            tgt_type = _clean_scalar(row.get("target_type", "gene"), "gene")
+            relation = _clean_scalar(row.get("relation", "associate"), "associate")
+            evidence = _clean_scalar(row.get("evidence", ""))
+            pmid = _clean_scalar(row.get("pmid", ""))
+
+            if not src_name or not tgt_name:
+                continue
 
             src_id = f"{src_type}:{src_name}"
             tgt_id = f"{tgt_type}:{tgt_name}"
@@ -130,7 +143,7 @@ def build_graph_json(
                     "is_input": tgt_name in input_genes,
                 }
 
-            source_db = row.get("source_db", "")
+            source_db = _clean_scalar(row.get("source_db", ""))
             norm_relation = normalize(relation, source_db)
             edges.append({
                 "source": src_id,
@@ -147,7 +160,14 @@ def build_graph_json(
     seen = set()
     unique_edges = []
     for e in edges:
-        key = (e["source"], e["target"], e["type"], e.get("relation", ""))
+        key = (
+            e["source"],
+            e["target"],
+            e["type"],
+            e.get("relation", ""),
+            e.get("source_db", ""),
+            e.get("pmid", ""),
+        )
         if key not in seen:
             seen.add(key)
             unique_edges.append(e)
