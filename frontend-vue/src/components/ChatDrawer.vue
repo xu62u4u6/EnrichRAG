@@ -12,8 +12,8 @@
         </button>
       </div>
 
-      <div class="chat-body">
-        <div v-if="!chat.messages.length" class="chat-message assistant chat-message-intro">
+      <div ref="chatBody" class="chat-body">
+        <div v-if="!chat.messages.length && !chat.loading" class="chat-message assistant chat-message-intro">
           <div class="msg-content">
             <div class="state-card state-card-empty state-card-compact">
               <h3>EnrichRAG Assistant</h3>
@@ -29,17 +29,29 @@
             </div>
           </div>
         </div>
-        <article v-for="(message, index) in chat.messages" :key="index" class="chat-message" :class="message.role">
+        <article v-for="(message, index) in chat.messages" :key="index" class="chat-message" :class="[message.role, { pending: isPendingAssistantMessage(message, index) }]">
+          <div class="chat-message-meta">
+            {{ message.role === 'user' ? 'You' : 'Assistant' }}
+          </div>
           <div class="msg-content">
-            <div v-html="renderMarkdownSafe(message.content)"></div>
+            <template v-if="isPendingAssistantMessage(message, index)">
+              <span class="typing-indicator">...</span>
+            </template>
+            <div v-else v-html="renderMarkdownSafe(message.content)"></div>
+          </div>
+          <div v-if="message.role === 'assistant' && message.content" class="chat-action-bar">
+            <button class="chat-action-btn" title="Copy response" @click="copyMessage(message.content)">
+              <Copy :size="13" />
+              <span>Copy</span>
+            </button>
           </div>
         </article>
       </div>
 
       <div class="chat-footer">
         <form id="chatForm" @submit.prevent="submit">
-          <input v-model="query" type="text" placeholder="Ask about this analysis..." autocomplete="off" />
-          <button type="submit" class="chat-send-btn" :disabled="chat.loading || !analysis.result" aria-label="Send message">
+          <input v-model="query" type="text" placeholder="Ask about this analysis..." autocomplete="off" :disabled="chat.loading" />
+          <button type="submit" class="chat-send-btn" :disabled="chat.loading || !analysis.result || !query.trim()" aria-label="Send message">
             <Send :size="16" />
           </button>
         </form>
@@ -50,15 +62,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { X, Send, ArrowRight } from 'lucide-vue-next';
+import { ref, computed, watch, nextTick } from 'vue';
+import { X, Send, ArrowRight, Copy } from 'lucide-vue-next';
 import { useAnalysisStore } from '../stores/analysis';
 import { useChatStore } from '../stores/chat';
+import { useUiStore } from '../stores/ui';
 import { renderMarkdownSafe } from '../utils/markdown';
 
 const chat = useChatStore();
 const analysis = useAnalysisStore();
+const ui = useUiStore();
 const query = ref('');
+const chatBody = ref<HTMLDivElement | null>(null);
 
 const suggestions = computed(() => {
   const r = analysis.result;
@@ -75,6 +90,15 @@ const suggestions = computed(() => {
   return items.slice(0, 4);
 });
 
+// Auto-scroll on new messages or loading change
+watch(
+  () => [chat.messages.length, chat.loading],
+  async () => {
+    await nextTick();
+    if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight;
+  },
+);
+
 async function submitSuggestion(text: string) {
   if (!analysis.result) return;
   await chat.send(text, analysis.result);
@@ -85,5 +109,15 @@ async function submit() {
   const value = query.value;
   query.value = '';
   await chat.send(value, analysis.result);
+}
+
+function copyMessage(content: string) {
+  navigator.clipboard.writeText(content)
+    .then(() => ui.showToast('Response copied'))
+    .catch(() => ui.showToast('Copy failed'));
+}
+
+function isPendingAssistantMessage(message: { role: string; content: string }, index: number) {
+  return chat.loading && message.role === 'assistant' && !message.content && index === chat.messages.length - 1;
 }
 </script>

@@ -14,8 +14,8 @@
         <div class="results-actions">
           <button v-if="analysis.running" class="btn btn-danger" @click="analysis.cancelRun()"><Square :size="14" /> Stop</button>
           <button class="btn btn-secondary" :disabled="!analysis.result" @click="chat.open = true"><MessageSquare :size="14" /> Ask Assistant</button>
-          <button class="btn btn-secondary" :disabled="!analysis.result" @click="copyReport"><Clipboard :size="14" /> Copy</button>
-          <button class="btn btn-secondary" :disabled="!analysis.result" @click="downloadJson"><Download :size="14" /> JSON</button>
+          <button ref="copyBtn" class="btn btn-secondary" :disabled="!analysis.result" @click="copyReport"><component :is="copyIcon" :size="14" /> {{ copyLabel }}</button>
+          <button ref="jsonBtn" class="btn btn-secondary" :disabled="!analysis.result" @click="downloadJson"><component :is="jsonIcon" :size="14" /> {{ jsonLabel }}</button>
         </div>
       </div>
     </div>
@@ -79,6 +79,7 @@ import {
   Square,
   MessageSquare,
   Clipboard,
+  Check,
   Download,
   Dna,
   GitBranch,
@@ -128,19 +129,51 @@ const tabs = computed(() => [
   { id: 'report', label: 'Insight Report', icon: FileText, count: null },
 ]);
 
+// Copy / JSON button feedback
+const copyLabel = ref('Copy');
+const copyIcon = ref(Clipboard);
+const jsonLabel = ref('JSON');
+const jsonIcon = ref(Download);
+
+function flashButton(labelRef: typeof copyLabel, iconRef: typeof copyIcon, text: string, originalText: string, originalIcon: typeof Clipboard) {
+  labelRef.value = text;
+  iconRef.value = Check;
+  setTimeout(() => {
+    labelRef.value = originalText;
+    iconRef.value = originalIcon;
+  }, 1200);
+}
+
 async function copyReport() {
-  await navigator.clipboard.writeText(analysis.result?.llm_insight || '');
+  const text = (analysis.result?.llm_insight || '').trim();
+  if (!text) { ui.showToast('No report to copy'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+  flashButton(copyLabel, copyIcon, 'Copied', 'Copy', Clipboard);
   ui.showToast('Report copied');
 }
 
 function downloadJson() {
+  if (!analysis.result) { ui.showToast('No analysis loaded'); return; }
   const blob = new Blob([JSON.stringify(analysis.result, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = 'enrichrag-result.json';
+  const disease = (analysis.result.disease_context || 'result').replace(/\s+/g, '_');
+  anchor.download = `enrichRAG_${disease}_${Date.now()}.json`;
   anchor.click();
-  URL.revokeObjectURL(url);
-  ui.showToast('JSON exported');
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  flashButton(jsonLabel, jsonIcon, 'Downloaded', 'JSON', Download);
+  ui.showToast('JSON downloaded');
 }
 </script>

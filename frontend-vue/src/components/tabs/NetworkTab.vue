@@ -2,25 +2,32 @@
   <div class="table-card network-tab-card">
     <div v-if="!allNodes.length" class="state-card state-card-compact">
       <h3>No network data</h3>
-      <p>The relation network is generated after extraction completes.</p>
+      <p>No network data yet — a partial graph will appear after local KG lookup.</p>
     </div>
     <template v-else>
       <div class="network-tab-controls">
-        <!-- Preset toolbar -->
-        <div class="preset-toolbar">
+        <!-- Segmented control presets -->
+        <div class="segmented-control">
           <button
             v-for="preset in presets"
             :key="preset.id"
-            class="preset-btn"
+            class="segmented-control-btn"
             :class="{ active: activePreset === preset.id }"
             @click="applyPreset(preset.id)"
           >
+            <component :is="preset.icon" :size="14" />
             {{ preset.label }}
           </button>
         </div>
 
+        <!-- Advanced filters toggle -->
+        <button class="advanced-filters-toggle" @click="showAdvanced = !showAdvanced">
+          {{ showAdvanced ? 'Hide' : 'Show' }} Advanced Filters
+          <span class="filter-section-caret" :class="{ open: showAdvanced }">▸</span>
+        </button>
+
         <!-- Accordion filters -->
-        <div class="filter-accordion">
+        <div v-show="showAdvanced" class="filter-accordion">
           <!-- Source section -->
           <div class="filter-section">
             <div class="filter-section-header" @click="toggleSection('source')">
@@ -36,11 +43,11 @@
                   <button
                     v-for="src in sourceCategories"
                     :key="src.id"
-                    class="sub-tab-btn"
+                    class="filter-chip"
                     :class="{ active: activeSources.has(src.id) }"
                     @click="setCustom(); toggleSource(src.id)"
                   >
-                    {{ src.label }} {{ src.count }}
+                    <span class="chip-check" />{{ src.label }} {{ src.count }}
                   </button>
                 </div>
               </div>
@@ -50,11 +57,11 @@
                   <button
                     v-for="sub in kgSubSources"
                     :key="sub.id"
-                    class="sub-tab-btn"
+                    class="filter-chip"
                     :class="{ active: activeKgSources.has(sub.id) }"
                     @click="setCustom(); toggleKgSource(sub.id)"
                   >
-                    {{ sub.label }} {{ sub.count }}
+                    <span class="chip-check" />{{ sub.label }} {{ sub.count }}
                   </button>
                 </div>
               </div>
@@ -76,11 +83,11 @@
                   <button
                     v-for="src in enrichmentSources"
                     :key="src.id"
-                    class="sub-tab-btn"
+                    class="filter-chip"
                     :class="{ active: activeEnrichment.has(src.id) }"
                     @click="setCustom(); toggleEnrichment(src.id)"
                   >
-                    {{ src.label }} {{ src.count }}
+                    <span class="chip-check" />{{ src.label }} {{ src.count }}
                   </button>
                 </div>
               </div>
@@ -100,11 +107,11 @@
               <div v-for="group in relationGroupOptions" :key="group.label" class="relation-group">
                 <div class="relation-group-header">
                   <button
-                    class="sub-tab-btn"
+                    class="filter-chip"
                     :class="{ active: isGroupFullyActive(group), partial: isGroupPartiallyActive(group) }"
                     @click="setCustom(); toggleWholeGroup(group)"
                   >
-                    {{ group.label }} {{ group.totalCount }}
+                    <span class="chip-check" />{{ group.label }} {{ group.totalCount }}
                   </button>
                   <button
                     v-if="group.subtypes.length > 1"
@@ -118,11 +125,11 @@
                   <button
                     v-for="sub in group.subtypes"
                     :key="sub.relation"
-                    class="sub-tab-btn sub-tab-btn-sm"
+                    class="filter-chip filter-chip-sm"
                     :class="{ active: activeRelations.has(sub.relation) }"
                     @click="setCustom(); toggleRelation(sub.relation)"
                   >
-                    {{ sub.label }} {{ sub.count }}
+                    <span class="chip-check" />{{ sub.label }} {{ sub.count }}
                   </button>
                 </div>
               </div>
@@ -144,6 +151,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { Layers, GitFork, Tags, Heart, SlidersHorizontal } from 'lucide-vue-next';
 import NetworkGraph from '../NetworkGraph.vue';
 import { useAnalysisStore } from '../../stores/analysis';
 import { useGeneDrawerStore } from '../../stores/geneDrawer';
@@ -206,12 +214,12 @@ function getRelationGroup(relation: string): string {
 
 /* ── Presets ── */
 
-const presets: { id: PresetId; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'gene-relations', label: 'Gene Relations' },
-  { id: 'bio-terms', label: 'Bio Terms' },
-  { id: 'disease-context', label: 'Disease Context' },
-  { id: 'custom', label: 'Custom' },
+const presets: { id: PresetId; label: string; icon: typeof Layers }[] = [
+  { id: 'overview', label: 'Overview', icon: Layers },
+  { id: 'gene-relations', label: 'Gene Relations', icon: GitFork },
+  { id: 'bio-terms', label: 'Bio Terms', icon: Tags },
+  { id: 'disease-context', label: 'Disease Context', icon: Heart },
+  { id: 'custom', label: 'Custom', icon: SlidersHorizontal },
 ];
 
 /* ── Stores ── */
@@ -222,6 +230,7 @@ const geneDrawer = useGeneDrawerStore();
 /* ── State ── */
 
 const activePreset = ref<PresetId>('overview');
+const showAdvanced = ref(false);
 const openSection = ref<SectionId | null>(null);
 const expandedGroups = ref(new Set<string>());
 
@@ -456,6 +465,7 @@ function applyPreset(id: PresetId) {
 
 function setCustom() {
   activePreset.value = 'custom';
+  showAdvanced.value = true;
 }
 
 /* ── Section accordion ── */

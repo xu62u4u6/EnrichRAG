@@ -94,6 +94,7 @@
   display: flex;
   flex-direction: column;
   max-width: 88%;
+  gap: 0.32rem;
 }
 
 .chat-message-intro {
@@ -110,26 +111,44 @@
 
 .chat-message.user {
   align-self: flex-end;
+  margin-left: auto;
 }
 
 .chat-message.assistant {
   align-self: flex-start;
 }
 
+.chat-message-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  padding: 0 0.2rem;
+}
+
+.chat-message.user .chat-message-meta {
+  color: color-mix(in srgb, var(--gray-900) 70%, white);
+  text-align: right;
+}
+
 .chat-message .msg-content {
-  padding: 0.85rem 1rem;
-  border-radius: 12px;
-  font-size: 0.9rem;
-  line-height: 1.7;
+  padding: 0.95rem 1.05rem;
+  border-radius: 14px;
+  font-size: 0.92rem;
+  line-height: 1.72;
   color: var(--gray-800);
   word-wrap: break-word;
 }
 
 .chat-message.user .msg-content {
-  background: var(--gray-900);
+  background:
+    linear-gradient(135deg, rgba(17, 24, 39, 1) 0%, rgba(31, 41, 55, 0.96) 100%);
   color: var(--white);
+  border: 1px solid rgba(17, 24, 39, 0.92);
   border-bottom-right-radius: 3px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 12px 24px rgba(17, 24, 39, 0.16);
+  font-weight: 600;
 }
 
 .chat-message.assistant .msg-content {
@@ -137,6 +156,10 @@
   border: 1px solid var(--gray-200);
   border-bottom-left-radius: 3px;
   box-shadow: var(--shadow-sm);
+}
+
+.chat-message.pending .msg-content {
+  min-width: 4rem;
 }
 
 .chat-message-intro .state-card {
@@ -402,6 +425,53 @@
 .chat-suggestion-btn:hover {
   background: var(--gray-50);
   color: var(--gray-900);
+}
+
+/* ---- Typing indicator ---- */
+.typing-indicator {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--gray-500);
+  animation: pulse 1.4s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+/* ---- Chat action bar ---- */
+.chat-action-bar {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+  padding-left: 0.2rem;
+}
+
+.chat-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.4rem;
+  border: none;
+  background: none;
+  color: var(--gray-400);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.chat-action-btn:hover {
+  color: var(--gray-700);
+  background: var(--gray-100);
+}
+
+.chat-action-btn svg {
+  width: 13px;
+  height: 13px;
 }
 
 /* ---- Gene drawer ---- */
