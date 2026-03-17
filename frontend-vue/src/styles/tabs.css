@@ -1,0 +1,40 @@
+/* ---- Tabs ---- */
+.tabs {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid var(--gray-200);
+  margin-bottom: 1.25rem;
+  padding: 0 0 0.1rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tab-btn {
+  padding: 0.65rem 0.25rem;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-400);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  position: relative;
+}
+
+.tab-btn:hover {
+  color: var(--gray-700);
+}
+
+.tab-btn.active {
+  color: var(--gray-900);
+  border-bottom-color: var(--gray-900);
+}
+

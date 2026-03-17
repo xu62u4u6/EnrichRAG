@@ -26,13 +26,9 @@ This file tracks confirmed frontend issues, maintenance debt, and suggested refa
   Evidence: both `frontend-vue/src/router.ts` and `frontend-vue/src/router/index.ts` defined the same router.
   Fix applied: `main.ts` only imported `./router` (i.e. `src/router.ts`), so `src/router/index.ts` was completely unused. Deleted the file and its empty directory. Build verified.
 
-- [ ] Break up oversized CSS files into feature-scoped modules.
-  Evidence: `frontend-vue/src/styles/components.css` is over 2,100 lines, while responsive behavior is spread separately across `responsive.css`.
-  Risk: style lookup is slow, regressions are easier to introduce, and component ownership is unclear.
-  Possible solutions:
-  1. Split styles by domain, for example `forms.css`, `tables.css`, `network.css`, `history.css`, `chat.css`.
-  2. Co-locate strongly component-specific styles with their component if that matches team preference.
-  3. Reserve global CSS files for tokens, reset/base, layout primitives, and shared utilities only.
+- [x] Break up oversized CSS files into feature-scoped modules.
+  Evidence: `components.css` was 2,179 lines in a single file.
+  Fix applied: split into 14 domain-scoped files (surfaces, auth, forms, nav, buttons, results, tabs, tables, report, history, graph, toast, gene-pills, pipeline). `components.css` now only contains `@import` statements. CSS output size unchanged (52.98 kB). Build verified.
 
 - [ ] Reduce inline styling in Vue templates and JS-generated markup.
   Evidence: several files use inline styles, including `AnalysisForm.vue`, `HistoryPanel.vue`, `NetworkTab.vue`, `PipelineViz.vue`, and `NetworkGraph.vue`.

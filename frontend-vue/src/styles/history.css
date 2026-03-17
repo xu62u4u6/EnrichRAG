@@ -1,0 +1,246 @@
+/* ---- History ---- */
+.history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.3rem;
+  border-bottom: 1px solid rgba(228, 231, 236, 0.9);
+  background: rgba(249, 250, 251, 0.55);
+}
+
+.history-toolbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.history-toolbar-copy {
+  font-size: 0.72rem;
+  color: var(--gray-500);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.history-clear-btn {
+  min-height: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.58rem;
+  border: 1px solid rgba(208, 213, 221, 0.9);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--gray-500);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.history-clear-btn:hover {
+  color: var(--gray-900);
+  border-color: rgba(152, 162, 179, 0.9);
+  background: rgba(249, 250, 251, 0.82);
+}
+
+.history-search-input {
+  width: 6rem;
+  padding: 0.26rem 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gray-700);
+  font-size: 0.75rem;
+  outline: none;
+  transition: width 0.18s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.history-search-input::placeholder {
+  color: var(--gray-400);
+}
+
+.history-search-input:focus {
+  width: 12rem;
+  border-color: rgba(208, 213, 221, 0.9);
+  background: rgba(255, 255, 255, 0.96);
+  padding-left: 0.55rem;
+  padding-right: 0.55rem;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+
+.history-search-shell {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.08rem 0;
+}
+
+.history-search-shell svg {
+  width: 14px;
+  height: 14px;
+  color: var(--gray-400);
+  flex: 0 0 auto;
+}
+
+.history-search-shell:hover .history-search-input,
+.history-search-input:focus {
+  width: 12rem;
+  border-color: rgba(208, 213, 221, 0.9);
+  background: rgba(255, 255, 255, 0.96);
+  padding-left: 0.55rem;
+  padding-right: 0.55rem;
+}
+
+.history-clear-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.history-load-btn {
+  width: 100%;
+  text-align: left;
+  padding: 0.82rem 1.3rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  transition: background 0.15s;
+}
+
+.history-load-btn:hover {
+  background: rgba(249, 250, 251, 0.7);
+}
+
+.history-item + .history-item {
+  border-top: 1px solid var(--gray-100);
+}
+
+.history-delete-btn {
+  width: 42px;
+  border: none;
+  border-bottom: 1px solid rgba(242, 244, 247, 0.95);
+  background: none;
+  color: var(--gray-400);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+}
+
+.history-delete-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.history-delete-btn:hover {
+  color: var(--color-danger);
+}
+
+.hist-info {
+  min-width: 0;
+}
+
+.hist-info .hist-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.08rem;
+}
+
+.hist-info .hist-disease {
+  font-weight: 500;
+  color: var(--gray-900);
+  font-size: 0.875rem;
+}
+
+.hist-info .hist-gene-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gray-500);
+  background: rgba(242, 244, 247, 0.9);
+  padding: 0.12em 0.42em;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
+}
+
+.hist-info .hist-genes {
+  font-size: 0.74rem;
+  color: var(--gray-400);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 460px;
+  margin-top: 0.15rem;
+}
+
+.hist-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-shrink: 0;
+  opacity: 0.78;
+  transition: opacity 0.15s;
+}
+
+.history-item:hover .hist-actions {
+  opacity: 1;
+}
+
+.hist-time {
+  font-size: 10px;
+  color: var(--gray-400);
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  letter-spacing: 0.06em;
+}
+
+.hist-arrow {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(152, 162, 179, 0);
+  transition: color 0.15s ease;
+}
+
+.history-item:hover .hist-arrow {
+  color: var(--gray-400);
+}
+
+.hist-arrow svg {
+  width: 15px;
+  height: 15px;
+}
+
+.history-empty-row {
+  padding: 4.8rem 1.4rem;
+}
+
+.history-empty-copy {
+  color: var(--gray-400);
+  font-size: 0.84rem;
+}
+

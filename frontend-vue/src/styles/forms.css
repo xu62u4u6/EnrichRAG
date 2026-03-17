@@ -1,0 +1,167 @@
+/* ---- Form ---- */
+label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-400);
+  margin-bottom: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+label .hint {
+  font-weight: 500;
+  color: var(--gray-300);
+  margin-left: 0.35rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+}
+
+textarea,
+input[type='text'],
+input[type='number'],
+input[type='email'],
+input[type='password'] {
+  width: 100%;
+  padding: 0.65rem 0;
+  border: none;
+  border-bottom: 2px solid var(--gray-200);
+  background: transparent;
+  border-radius: 0;
+  font-size: 0.85rem;
+  color: var(--gray-800);
+  transition: border-color 0.2s;
+  font-family: var(--font-body);
+}
+
+textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.8;
+  padding: 0.5rem 0;
+  font-weight: 400;
+  letter-spacing: 0;
+  font-kerning: none;
+  font-variant-ligatures: none;
+}
+
+textarea:focus,
+input:focus {
+  outline: none;
+  border-bottom-color: var(--gray-900);
+}
+
+textarea::placeholder,
+input::placeholder {
+  color: var(--gray-300);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 1.75rem;
+}
+
+.form-group {
+  margin-bottom: 1.75rem;
+}
+
+
+/* ---- Validation ---- */
+.validation-panel {
+  margin-top: 1rem;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.validation-head {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.validation-head h3 {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--gray-900);
+}
+
+.validation-head p {
+  color: var(--gray-500);
+  font-size: 0.8rem;
+  margin-top: 0.2rem;
+}
+
+.validation-badges {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.validation-badge,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.18em 0.55em;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+
+.validation-badge.accepted,
+.status-pill.accepted {
+  background: var(--green-50);
+  color: var(--green-600);
+}
+
+.validation-badge.remapped,
+.status-pill.remapped {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+
+.validation-badge.rejected,
+.status-pill.rejected {
+  background: var(--red-50);
+  color: var(--red-600);
+}
+
+.validation-note {
+  padding: 0.85rem 1.25rem;
+  font-size: 0.78rem;
+  color: var(--gray-500);
+  border-top: 1px solid var(--color-border);
+  background: rgba(249, 250, 251, 0.82);
+}
+
+
+/* ---- Validation gene button ---- */
+.validation-gene-btn {
+  border: none;
+  background: none;
+  color: var(--gray-900);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--font-mono);
+}
+
+.validation-gene-btn:hover {
+  color: var(--teal-700);
+}
+

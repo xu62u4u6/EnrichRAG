@@ -1,0 +1,220 @@
+/* ---- Auth Brand ---- */
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+}
+
+.auth-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  padding-left: 0.6rem;
+}
+
+.auth-brand-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-left: 0.2rem;
+}
+
+.auth-logo-mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--gray-900);
+  padding: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 18px 40px -24px rgba(16, 24, 40, 0.5);
+}
+
+.auth-logo-mark img,
+.sidebar-brand .icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: brightness(0) invert(1);
+}
+
+.auth-brand h1 {
+  margin: 0;
+  line-height: 1;
+  font-family: var(--font-display);
+  font-size: 2.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--gray-900);
+}
+
+.auth-brand p {
+  margin: 0.4rem 0 0;
+  line-height: 1;
+  color: var(--gray-400);
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  text-align: left;
+  font-family: var(--font-display);
+}
+
+/* ---- Auth Form ---- */
+.auth-error {
+  min-height: 1.2rem;
+  margin-bottom: 0.75rem;
+  color: var(--color-danger);
+  font-size: 0.875rem;
+  text-align: center;
+  font-family: var(--font-display);
+}
+
+.auth-form {
+  display: none;
+}
+
+.auth-form.active {
+  display: block;
+}
+
+.auth-form-inner {
+  padding-left: 12px;
+}
+
+.auth-field {
+  position: relative;
+  margin-bottom: 2rem;
+}
+
+.auth-field input {
+  width: 100%;
+  padding: 0.65rem 0;
+  border: none;
+  border-bottom: 1px solid var(--gray-200);
+  background: transparent;
+  font-size: 1rem;
+  color: var(--gray-900);
+  transition: border-color 0.2s;
+  border-radius: 0;
+  font-family: var(--font-display);
+  line-height: 1.2;
+}
+
+.auth-field .auth-password-input {
+  padding-right: 2rem;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  right: 0;
+  top: 0.38rem;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+}
+
+.auth-password-toggle:hover {
+  color: var(--gray-900);
+}
+
+.auth-password-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+
+.auth-field label {
+  position: absolute;
+  left: 0;
+  top: -1rem;
+  margin-bottom: 0;
+  font-size: 10px;
+  color: var(--gray-900);
+  transition: all 0.3s ease;
+  pointer-events: none;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: var(--font-display);
+}
+
+.auth-field input:placeholder-shown + label {
+  top: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--gray-400);
+}
+
+.auth-field input:focus + label,
+.auth-field input:not(:placeholder-shown) + label {
+  top: -1rem;
+  font-size: 10px;
+  color: var(--gray-900);
+}
+
+.auth-field input:focus {
+  outline: none;
+  border-bottom-color: var(--gray-900);
+}
+
+.auth-field-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  color: var(--gray-400);
+  font-family: var(--font-display);
+}
+
+.auth-submit {
+  width: 100%;
+  padding: 1rem;
+  border: none;
+  background: var(--gray-900);
+  color: var(--white);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  margin-top: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-display);
+}
+
+.auth-submit:hover {
+  background: var(--gray-800);
+}
+
+.auth-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 2.25rem;
+  border: none;
+  background: none;
+  color: var(--gray-400);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: color 0.2s;
+  font-family: var(--font-display);
+}
+
+.auth-switch:hover {
+  color: var(--gray-900);
+}
+

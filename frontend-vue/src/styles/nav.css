@@ -1,0 +1,101 @@
+/* ---- Nav ---- */
+.nav-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+  font-family: var(--font-body);
+}
+
+.nav-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.nav-btn:hover {
+  background: var(--gray-50);
+  color: var(--gray-800);
+}
+
+.nav-btn.active {
+  background: var(--gray-100);
+  color: var(--gray-900);
+  font-weight: 600;
+}
+
+.nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.nav-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.nav-btn .badge {
+  margin-left: auto;
+  background: var(--gray-100);
+  color: var(--gray-500);
+  padding: 0.1em 0.45em;
+  border-radius: 99px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.nav-btn.active .badge {
+  background: var(--gray-200);
+  color: var(--gray-700);
+}
+
+/* ---- Sidebar footer ---- */
+.sidebar-user-name {
+  color: var(--gray-900);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.sidebar-user-handle {
+  color: var(--gray-400);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+.sidebar-signout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  color: var(--gray-500);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sidebar-signout:hover {
+  color: var(--gray-900);
+  border-color: var(--gray-300);
+}
+
+.sidebar-signout svg {
+  width: 15px;
+  height: 15px;
+}
+

@@ -1,0 +1,296 @@
+/* ---- Pipeline ---- */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+.pipeline-tab-wrap {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid var(--gray-200);
+  overflow: hidden;
+  padding: 2rem 1rem;
+}
+
+.pipeline-tab-wrap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, var(--gray-300) 0.8px, transparent 0.8px);
+  background-size: 16px 16px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.pipeline-tab-wrap .loading-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  z-index: 2;
+  position: relative;
+}
+
+.pipeline-tab-wrap .loading-header h3 {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--gray-900);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  margin-bottom: 0.4rem;
+}
+
+.pipeline-tab-wrap .loading-header p {
+  color: var(--gray-400);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+}
+
+.pipeline-canvas {
+  position: relative;
+  width: 1040px;
+  max-width: 100%;
+  height: 320px;
+  margin: 0 auto;
+  z-index: 2;
+}
+
+.pipe-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pipe-node .node-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--white);
+  border: 1.5px solid var(--gray-200);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-xs);
+}
+
+.pipe-node .node-circle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pipe-node .node-label {
+  margin-top: 0.6rem;
+  text-align: center;
+}
+
+.pipe-node .node-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--gray-800);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  line-height: 1.2;
+}
+
+.pipe-node .node-sub {
+  font-size: 10px;
+  color: var(--gray-400);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+
+.pipe-node .node-timer {
+  font-size: 9px;
+  color: var(--gray-500);
+  font-family: var(--font-mono);
+  margin-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pipe-node[data-status="pending"] {
+  opacity: 0.35;
+}
+
+.pipe-node[data-status="pending"] .node-circle {
+  color: var(--gray-400);
+}
+
+.pipe-node[data-status="active"] {
+  opacity: 1;
+}
+
+.pipe-node[data-status="active"] .node-circle {
+  border-color: var(--gray-900);
+  color: var(--gray-900);
+  box-shadow: 0 0 0 4px rgba(16, 24, 40, 0.06);
+  transform: scale(1.1);
+}
+
+.pipe-node[data-status="active"] .node-circle svg {
+  animation: spin 0.7s linear infinite;
+}
+
+.pipe-node[data-status="done"] {
+  opacity: 1;
+}
+
+.pipe-node[data-status="done"] .node-circle {
+  border-color: var(--gray-300);
+  color: var(--gray-800);
+  background: var(--gray-50);
+}
+
+.pipe-line {
+  transition: stroke 0.4s, stroke-width 0.3s, opacity 0.4s;
+}
+
+.pipe-line.pending {
+  stroke: var(--gray-200);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+.pipe-line.active {
+  stroke: var(--gray-900);
+  stroke-width: 1.5;
+  opacity: 0.5;
+  stroke-dasharray: 5, 5;
+  animation: dash 0.8s linear infinite;
+}
+
+.pipe-line.done {
+  stroke: var(--gray-300);
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+
+/* ---- Mobile Pipeline Rail (hidden on desktop) ---- */
+.pipeline-mobile-rail {
+  display: none;
+}
+
+.mobile-step {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.mobile-link {
+  width: 2px;
+  min-height: 100%;
+  justify-self: center;
+  background: linear-gradient(180deg, var(--gray-300) 0%, var(--gray-200) 100%);
+  border-radius: 999px;
+  transition: background 0.4s;
+}
+
+.mobile-step:first-child .mobile-link {
+  opacity: 0;
+}
+
+.mobile-link[data-link-status="active"] {
+  background: linear-gradient(180deg, var(--gray-900), var(--gray-700));
+}
+
+.mobile-link[data-link-status="done"] {
+  background: linear-gradient(180deg, var(--gray-400), var(--gray-300));
+}
+
+.mobile-node {
+  position: relative !important;
+  transform: none !important;
+  left: auto !important;
+  top: auto !important;
+  display: grid !important;
+  grid-template-columns: 44px minmax(0, 1fr);
+  flex-direction: row !important;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(16, 24, 40, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 0.35rem;
+}
+
+.mobile-node .node-label {
+  text-align: left;
+  margin-top: 0;
+}
+
+.mobile-node .node-title {
+  letter-spacing: 0.14em;
+}
+
+.mobile-node .node-sub {
+  font-size: 10px;
+}
+
+.mobile-node[data-status="active"] {
+  border-color: rgba(16, 24, 40, 0.2);
+  box-shadow: 0 10px 28px -14px rgba(16, 24, 40, 0.28);
+}
+
+/* Branch group (parallel retrieval) */
+.mobile-branch-group {
+  position: relative;
+  padding: 0.7rem 0.8rem 0.35rem;
+  border: 1px solid rgba(16, 24, 40, 0.08);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(249, 250, 251, 0.95));
+  box-shadow: var(--shadow-xs);
+  margin: 0.35rem 0 0.35rem 26px;
+}
+
+.mobile-branch-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.7rem 0.15rem;
+}
+
+.branch-kicker {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--gray-500);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.branch-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--gray-300), transparent);
+}
+
+.mobile-branch-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.mobile-branch-grid .mobile-step {
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+}
+
+.mobile-branch-grid .mobile-node {
+  grid-template-columns: 40px minmax(0, 1fr);
+  padding: 0.85rem 0.85rem 0.9rem;
+}

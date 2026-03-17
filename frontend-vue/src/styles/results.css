@@ -1,0 +1,255 @@
+/* ---- Results ---- */
+.results-header {
+  margin-bottom: 1.75rem;
+}
+
+.results-header .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.82rem;
+}
+
+.results-header .status-badge svg {
+  width: 13px;
+  height: 13px;
+}
+
+.results-header .status-badge svg.spin {
+  animation: spin 0.7s linear infinite;
+}
+
+.results-header .title-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.results-header h2 {
+  font-family: var(--font-display);
+  font-size: 1.62rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.results-header .meta {
+  font-size: 0.78rem;
+  color: var(--gray-500);
+  margin-top: 0.2rem;
+  font-family: var(--font-mono);
+}
+
+.results-header .meta b {
+  color: var(--gray-900);
+  font-weight: 700;
+}
+
+.results-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* ---- Stats ---- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.75rem;
+}
+
+.stat-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-xs);
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-card .stat-number {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--gray-900);
+  font-family: var(--font-mono);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-card .stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-top: 0.3rem;
+}
+
+
+/* ---- Stat Icon ---- */
+.stat-card .stat-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.6rem;
+}
+
+.stat-card .stat-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.stat-card .stat-icon.teal {
+  background: var(--teal-50);
+  color: var(--teal-700);
+}
+
+.stat-card .stat-icon.blue {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.stat-card .stat-icon.amber {
+  background: var(--amber-50);
+  color: var(--amber-700);
+}
+
+.stat-card .stat-icon.green {
+  background: var(--green-50);
+  color: var(--green-700);
+}
+
+/* ---- Tab count badges ---- */
+.tab-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.tab-btn .tab-count {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  background: var(--gray-100);
+  color: var(--gray-500);
+  padding: 0.14em 0.45em;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.tab-btn.active .tab-count {
+  background: var(--gray-900);
+  color: var(--white);
+}
+
+/* ---- Sub Tabs (pill style) ---- */
+.sub-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  padding: 0;
+  flex-wrap: wrap;
+}
+
+.sub-tab-btn,
+.filter-chip {
+  padding: 0.32rem 0.75rem;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-500);
+  background: none;
+  border: 1px solid var(--gray-200);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-body);
+  letter-spacing: 0.02em;
+}
+
+.sub-tab-btn:hover,
+.filter-chip:hover {
+  border-color: var(--gray-400);
+  color: var(--gray-700);
+}
+
+.sub-tab-btn.active,
+.filter-chip.active {
+  background: var(--gray-50);
+  color: var(--gray-900);
+  border-color: var(--gray-400);
+  font-weight: 600;
+}
+
+/* Filter chip checkmark */
+.filter-chip .chip-check {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--gray-300);
+  border-radius: 3px;
+  flex-shrink: 0;
+  position: relative;
+  transition: all 0.15s;
+}
+
+.filter-chip.active .chip-check {
+  background: var(--gray-800);
+  border-color: var(--gray-800);
+}
+
+.filter-chip.active .chip-check::after {
+  content: '';
+  position: absolute;
+  left: 2.5px;
+  top: 0.5px;
+  width: 4px;
+  height: 7px;
+  border: solid var(--white);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.filter-chip-sm {
+  padding: 0.2rem 0.55rem;
+  font-size: 10px;
+}
+
+.filter-chip-sm .chip-check {
+  width: 10px;
+  height: 10px;
+}
+
+.filter-chip-sm.active .chip-check::after {
+  left: 2px;
+  top: 0px;
+  width: 3px;
+  height: 6px;
+}
+
+.sub-panel {
+  display: none;
+  animation: fadeIn 0.2s ease;
+}
+
+.sub-panel.active {
+  display: block;
+}
+
