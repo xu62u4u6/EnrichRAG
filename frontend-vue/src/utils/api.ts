@@ -1,4 +1,4 @@
-const rawBase = window.__ENRICHRAG_VUE_BASE__ || '/ui-vue';
+const rawBase = window.__ENRICHRAG_VUE_BASE__ || '/';
 
 export const UI_BASE = rawBase.replace(/\/$/, '');
 export const API_PREFIX = (window.__API_PREFIX || '').replace(/\/$/, '');

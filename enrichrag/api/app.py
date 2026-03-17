@@ -18,28 +18,16 @@ prefix = f"/{_prefix}" if _prefix else ""
 app = FastAPI(title="enrichRAG", version="0.2.0")
 app.include_router(router, prefix=prefix)
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 VUE_UI_DIR = Path(__file__).resolve().parents[2] / "frontend-vue" / "dist"
 
-# Serve CSS/JS/assets under the prefix
-app.mount(f"{prefix}/css", StaticFiles(directory=STATIC_DIR / "css"), name="css")
-app.mount(f"{prefix}/js", StaticFiles(directory=STATIC_DIR / "js"), name="js")
-app.mount(f"{prefix}/img", StaticFiles(directory=STATIC_DIR / "img"), name="img")
+# Serve Vue built assets
 if (VUE_UI_DIR / "assets").exists():
-    app.mount(f"{prefix}/ui-vue/assets", StaticFiles(directory=VUE_UI_DIR / "assets"), name="ui-vue-assets")
+    app.mount(f"{prefix}/assets", StaticFiles(directory=VUE_UI_DIR / "assets"), name="vue-assets")
 
-
-def _render_static_html(filename: str) -> HTMLResponse:
-    html = (STATIC_DIR / filename).read_text(encoding="utf-8")
-    if prefix:
-        html = html.replace(
-            "window.__API_PREFIX = '';",
-            f"window.__API_PREFIX = '{prefix}';",
-        )
-        html = html.replace('href="css/', f'href="{prefix}/css/')
-        html = html.replace('src="js/', f'src="{prefix}/js/')
-        html = html.replace('src="img/', f'src="{prefix}/img/')
-    return HTMLResponse(html)
+# Serve Vue public directory files (e.g. /img/path1.svg)
+VUE_PUBLIC_IMG = VUE_UI_DIR / "img"
+if VUE_PUBLIC_IMG.exists():
+    app.mount(f"{prefix}/img", StaticFiles(directory=VUE_PUBLIC_IMG), name="vue-img")
 
 
 def _render_vue_html() -> HTMLResponse:
@@ -50,23 +38,18 @@ def _render_vue_html() -> HTMLResponse:
             status_code=503,
         )
     html = index_path.read_text(encoding="utf-8")
-    ui_base = f"{prefix}/ui-vue" if prefix else "/ui-vue"
-    html = html.replace("__UI_BASE__", ui_base)
+    ui_base = f"{prefix}/" if prefix else "/"
+    html = html.replace("__UI_BASE__", ui_base.rstrip("/") or "/")
     html = html.replace("__API_PREFIX__", prefix)
-    html = html.replace('src="./assets/', f'src="{ui_base}/assets/')
-    html = html.replace('href="./assets/', f'href="{ui_base}/assets/')
+    html = html.replace('src="./assets/', f'src="{ui_base}assets/')
+    html = html.replace('href="./assets/', f'href="{ui_base}assets/')
     return HTMLResponse(html)
 
 
 @app.get(f"{prefix}/", response_class=HTMLResponse)
-async def index():
-    return _render_static_html("index.html")
-
-
-@app.get(f"{prefix}/ui-vue", response_class=HTMLResponse)
-@app.get(f"{prefix}/ui-vue/{{full_path:path}}", response_class=HTMLResponse)
-async def vue_index(full_path: str = ""):
-    if full_path.startswith("assets/"):
+@app.get(f"{prefix}/{{full_path:path}}", response_class=HTMLResponse)
+async def index(full_path: str = ""):
+    if full_path.startswith("assets/") or full_path.startswith("img/"):
         return HTMLResponse(status_code=404, content="Not Found")
     return _render_vue_html()
 
