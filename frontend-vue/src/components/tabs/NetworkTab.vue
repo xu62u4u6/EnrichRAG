@@ -51,7 +51,7 @@
                   </button>
                 </div>
               </div>
-              <div v-if="activeSources.has('local-kg') && kgSubSources.length > 1" class="filter-row" style="padding-left: 0.6rem;">
+              <div v-if="activeSources.has('local-kg') && kgSubSources.length > 1" class="filter-row filter-row--indented">
                 <span class="filter-row-label">DB</span>
                 <div class="sub-tabs">
                   <button

@@ -30,13 +30,9 @@ This file tracks confirmed frontend issues, maintenance debt, and suggested refa
   Evidence: `components.css` was 2,179 lines in a single file.
   Fix applied: split into 14 domain-scoped files (surfaces, auth, forms, nav, buttons, results, tabs, tables, report, history, graph, toast, gene-pills, pipeline). `components.css` now only contains `@import` statements. CSS output size unchanged (52.98 kB). Build verified.
 
-- [ ] Reduce inline styling in Vue templates and JS-generated markup.
-  Evidence: several files use inline styles, including `AnalysisForm.vue`, `HistoryPanel.vue`, `NetworkTab.vue`, `PipelineViz.vue`, and `NetworkGraph.vue`.
-  Risk: styling becomes harder to search, theme consistently, and override responsively.
-  Possible solutions:
-  1. Replace template `style=""` usage with semantic utility classes or component classes.
-  2. Replace JS string-built inline styles in `NetworkGraph.vue` with CSS classes or data attributes.
-  3. Keep inline styles only for truly dynamic values that cannot be expressed cleanly through classes.
+- [x] Reduce inline styling in Vue templates and JS-generated markup.
+  Evidence: AnalysisForm, HistoryPanel, NetworkTab, PipelineViz, and NetworkGraph all had static inline styles.
+  Fix applied: replaced all static `style=""` with semantic CSS classes in the corresponding domain CSS files. NetworkGraph legend converted from JS inline styles to `data-edge-type`/`data-node-type` attributes with CSS rules. Only truly dynamic values (PipelineViz node positioning, ResultsWorkspace clipboard hack) kept as inline. Zero static inline styles remain.
 
 - [ ] Extract visual configuration from `NetworkGraph.vue`.
   Evidence: node colors, edge colors, radii, marker colors, and legend HTML are hard-coded directly in the component.

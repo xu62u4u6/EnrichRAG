@@ -5,7 +5,7 @@
       <p>{{ analysis.running ? 'Running pipeline...' : analysis.status === 'done' ? 'Pipeline complete' : 'Waiting to start' }}</p>
     </div>
     <div class="pipeline-canvas">
-      <svg class="pipeline-desktop-map" viewBox="0 0 1080 340" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0">
+      <svg class="pipeline-desktop-map pipeline-desktop-lines" viewBox="0 0 1080 340">
         <!-- Enrichment → Planning -->
         <path :class="['pipe-line', lineStates['line-0-1']]" d="M 75 155 L 210 155" fill="none" />
         <!-- Planning → Web Search / Local KG / PubMed -->

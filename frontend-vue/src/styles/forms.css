@@ -1,4 +1,12 @@
 /* ---- Form ---- */
+.page-header-compact {
+  margin-top: 0.5rem;
+}
+
+.error-text--spaced {
+  margin-top: 0.75rem;
+}
+
 label {
   display: block;
   font-size: 11px;
@@ -68,6 +76,10 @@ input::placeholder {
 
 .form-group {
   margin-bottom: 1.75rem;
+}
+
+.form-group--flush {
+  margin-bottom: 0;
 }
 
 

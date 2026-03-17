@@ -255,32 +255,29 @@ function renderLegend(container: HTMLDivElement, _width: number, _height: number
   el.className = 'graph-legend';
 
   const edgeItems = [
-    { label: 'Literature', color: '#f59e0b', dash: false },
-    { label: 'Local KG', color: '#3b82f6', dash: false },
-    { label: 'Enrichment', color: '#94a3b8', dash: true },
+    { label: 'Literature', type: 'literature' },
+    { label: 'Local KG', type: 'local-kg' },
+    { label: 'Enrichment', type: 'enrichment' },
   ];
 
   const nodeItems = [
-    { label: 'Gene', color: '#1e293b' },
-    { label: 'Disease', color: '#ef4444' },
-    { label: 'Drug', color: '#f59e0b' },
-    { label: 'GO/KEGG', color: '#6366f1' },
+    { label: 'Gene', type: 'gene' },
+    { label: 'Disease', type: 'disease' },
+    { label: 'Drug', type: 'drug' },
+    { label: 'GO/KEGG', type: 'go-kegg' },
   ];
 
   let html = '';
   for (const item of edgeItems) {
-    const style = item.dash
-      ? `border-top: 2px dashed ${item.color}`
-      : `border-top: 2px solid ${item.color}`;
     html += `<div class="graph-legend-item">
-      <span class="graph-legend-line" style="${style}"></span>
+      <span class="graph-legend-line" data-edge-type="${item.type}"></span>
       <span>${item.label}</span>
     </div>`;
   }
   html += '<div class="graph-legend-sep"></div>';
   for (const item of nodeItems) {
     html += `<div class="graph-legend-item">
-      <span class="graph-legend-dot" style="background:${item.color}"></span>
+      <span class="graph-legend-dot" data-node-type="${item.type}"></span>
       <span>${item.label}</span>
     </div>`;
   }

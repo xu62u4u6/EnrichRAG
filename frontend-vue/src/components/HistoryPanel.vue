@@ -18,7 +18,7 @@
         </button>
       </div>
 
-      <div v-if="history.loading" class="empty-state" style="padding: 1.5rem">Loading history…</div>
+      <div v-if="history.loading" class="empty-state empty-state--padded">Loading history…</div>
       <ul v-else-if="history.filteredItems.length" class="history-list">
         <li v-for="item in history.filteredItems" :key="item.id" class="history-item">
           <button class="history-load-btn" @click="load(item.id)">

@@ -53,6 +53,36 @@
   opacity: 0.7;
 }
 
+/* Legend edge types */
+.graph-legend-line[data-edge-type="literature"] {
+  border-top: 2px solid #f59e0b;
+}
+
+.graph-legend-line[data-edge-type="local-kg"] {
+  border-top: 2px solid #3b82f6;
+}
+
+.graph-legend-line[data-edge-type="enrichment"] {
+  border-top: 2px dashed #94a3b8;
+}
+
+/* Legend node types */
+.graph-legend-dot[data-node-type="gene"] {
+  background: #1e293b;
+}
+
+.graph-legend-dot[data-node-type="disease"] {
+  background: #ef4444;
+}
+
+.graph-legend-dot[data-node-type="drug"] {
+  background: #f59e0b;
+}
+
+.graph-legend-dot[data-node-type="go-kegg"] {
+  background: #6366f1;
+}
+
 .graph-legend-sep {
   border-top: 1px solid var(--gray-200);
   margin: 4px 0;
@@ -198,6 +228,10 @@
 
 .filter-section-body {
   padding: 0 0 0.6rem 14px;
+}
+
+.filter-row--indented {
+  padding-left: 0.6rem;
 }
 
 .filter-row {

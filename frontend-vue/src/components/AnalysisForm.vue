@@ -1,6 +1,6 @@
 <template>
   <div class="view active" id="view-input" @keydown="handleKeydown">
-    <div class="page-header" style="margin-top: 0.5rem">
+    <div class="page-header page-header-compact">
       <h2>Configure Analysis</h2>
       <p>Provide gene sets to initiate the RAG enrichment pipeline.</p>
     </div>
@@ -11,11 +11,11 @@
           <textarea v-model="analysis.genes" rows="4" @input="analysis.resetValidation()" placeholder="BRCA1 BRCA2 RAD51 ATM..."></textarea>
         </div>
         <div class="form-row">
-          <div class="form-group" style="margin-bottom: 0">
+          <div class="form-group form-group--flush">
             <label>Disease Context</label>
             <input type="text" v-model="analysis.disease" @input="analysis.resetValidation()" placeholder="e.g. breast cancer" />
           </div>
-          <div class="form-group" style="margin-bottom: 0">
+          <div class="form-group form-group--flush">
             <label>P-value Threshold</label>
             <input v-model.number="analysis.pval" type="number" min="0" max="1" step="0.01" />
           </div>
@@ -31,7 +31,7 @@
       </div>
     </div>
 
-    <p v-if="analysis.error" class="error-text" style="margin-top: 0.75rem">{{ analysis.error }}</p>
+    <p v-if="analysis.error" class="error-text error-text--spaced">{{ analysis.error }}</p>
 
     <div v-if="analysis.validation" class="validation-panel">
       <div class="validation-head">

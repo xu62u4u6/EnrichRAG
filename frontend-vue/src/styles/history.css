@@ -1,4 +1,8 @@
 /* ---- History ---- */
+.empty-state--padded {
+  padding: 1.5rem;
+}
+
 .history-toolbar {
   display: flex;
   align-items: center;
