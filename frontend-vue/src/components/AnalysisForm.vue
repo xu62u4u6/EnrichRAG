@@ -8,7 +8,7 @@
       <div class="card-body">
         <div class="form-group">
           <label>Gene Symbols <span class="hint">(comma, space, or newline separated)</span></label>
-          <textarea v-model="analysis.genes" rows="8" @input="analysis.resetValidation()" placeholder="BRCA1 BRCA2 RAD51 ATM..."></textarea>
+          <textarea v-model="analysis.genes" rows="4" @input="analysis.resetValidation()" placeholder="BRCA1 BRCA2 RAD51 ATM..."></textarea>
         </div>
         <div class="form-row">
           <div class="form-group" style="margin-bottom: 0">

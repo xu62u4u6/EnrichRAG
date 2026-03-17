@@ -129,8 +129,8 @@ flowchart TD
 | **Report Rendering** | Markdown → styled HTML with Lora serif typography | ✅ Done |
 | **Tabbed Results** | Enrichment tables, sources, relations, insights | ✅ Done |
 | **Analysis Chat Assistant** | Result-grounded chat drawer with streaming answers and suggested questions | ✅ Done |
-| **History Management** | Load, delete, and clear saved browser-side analysis history | ✅ Done |
-| **UI Refactor Sandbox** | Isolated `/ui-refactor` route for staged frontend redesign work | ✅ Done |
+| **History Management** | Load, delete, and clear authenticated server-side analysis history | ✅ Done |
+| **Vue Web UI** | Dedicated `/ui-vue` frontend for the modular Vue-based interface | ✅ Done |
 
 ---
 
@@ -186,16 +186,28 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 - [x] **Report Typography**: Lora serif font, wider layout, structured Markdown headings
 - [x] **Relations in LLM Prompt**: Extracted biomedical relations fed into analysis for richer interpretation
 - [x] **Result-grounded Chat Assistant**: Full-result chat context, streaming responses, and suggested follow-up questions
-- [x] **History Controls**: Browser-side saved analyses can be reloaded, deleted individually, or cleared
-- [x] **UI Refactor Sandbox**: `/ui-refactor` route for iterative frontend redesign without changing the main page
+- [x] **History Controls**: Authenticated users can reload, delete individually, or clear server-side saved analyses
+- [x] **Vue Web UI**: `/ui-vue` route for the modular Vue-based frontend
 - [x] **CLI Interface**: `enrichrag` command via Typer
 
 ### Frontend Notes
 
 - Main application route: `/`
-- Frontend redesign sandbox: `/ui-refactor`
-- Analysis results are stored in browser local storage under `enrichrag_history_v2`
+- Vue application route: `/ui-vue`
+- Analysis history is stored server-side in SQLite and scoped to the authenticated user
+- Authentication uses an `HttpOnly` session cookie with `SameSite=Lax`
 - Chat answers are grounded in the current analysis result payload rather than an external database lookup
+
+### v0.2.1 - Mobile UX Polish ✅
+
+- [x] **RUN PIPELINE button**: hide keyboard hint at 480px, stack action buttons vertically
+- [x] **P-value display**: `white-space: nowrap` prevents scientific notation truncation
+- [x] **Textarea height**: reduced `rows` and constrained height for compact mobile form
+- [x] **Tab scroll hint**: right-edge fade overlay indicates scrollable tabs
+- [x] **Chat drawer**: bottom-sheet style (85dvh, rounded top, translateY animation) on mobile
+- [x] **Touch targets**: nav buttons and history delete button meet 44px minimum
+- [x] **Enrichment table**: tighter term column with word-break for narrow screens
+- [x] **Layout fix**: `.main` gets explicit background and `flex: 1 1 auto` on mobile
 
 ### v0.3 - Knowledge Graph: 已知關係 (Next)
 
@@ -247,3 +259,19 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 - [ ] PubMed query cache (SQLite/Parquet)
 - [ ] (optional) Embedding index for semantic retrieval (ChromaDB)
 - [ ] (optional) Neo4j to replace NetworkX for large persistent graphs
+
+### Operations, Security, and Deployment
+
+- [x] Store passwords as salted PBKDF2 hashes instead of plaintext
+- [x] Use server-side session tokens rather than storing credentials in the browser
+- [x] Store auth state in an `HttpOnly` cookie with `SameSite=Lax`
+- [x] Scope saved analysis history to the authenticated user via `user_id`
+- [x] Enforce owner checks when loading or deleting saved history items
+- [x] Expire sessions server-side using `expires_at`
+- [ ] Enable `Secure` cookies in production over HTTPS
+- [ ] Add login rate limiting / brute-force protection on auth endpoints
+- [ ] Add CSRF protection for cookie-authenticated state-changing requests if the app is exposed beyond a trusted same-site deployment
+- [ ] Add account lifecycle controls such as password reset, email verification, or admin-managed provisioning if external users are expected
+- [ ] Review session revocation strategy for multi-session management
+- [ ] Review SQLite file permissions and deployment storage location for shared/lab environments
+- [ ] Consider audit logging for sign-in, sign-out, registration, and destructive history actions
