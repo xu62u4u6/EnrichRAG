@@ -6,28 +6,31 @@
     </div>
     <template v-else>
       <div class="network-tab-controls">
-        <!-- Segmented control presets -->
-        <div class="segmented-control">
-          <button
-            v-for="preset in presets"
-            :key="preset.id"
-            class="segmented-control-btn"
-            :class="{ active: activePreset === preset.id }"
-            @click="applyPreset(preset.id)"
-          >
-            <component :is="preset.icon" :size="14" />
-            {{ preset.label }}
-          </button>
+        <div class="network-controls-header">
+          <!-- Segmented control presets -->
+          <div class="segmented-control">
+            <button
+              v-for="preset in presets"
+              :key="preset.id"
+              class="segmented-control-btn"
+              :class="{ active: activePreset === preset.id }"
+              @click="applyPreset(preset.id)"
+            >
+              <component :is="preset.icon" :size="14" />
+              {{ preset.label }}
+            </button>
+          </div>
+          
+          <!-- Status bar -->
+          <div class="graph-status-bar source-meta-badge">
+            {{ filteredNodes.length }} nodes · {{ filteredEdges.length }} edges
+            <button class="reset-btn" @click="applyPreset(activePreset)">Reset</button>
+          </div>
         </div>
 
-        <!-- Advanced filters toggle -->
-        <button class="advanced-filters-toggle" @click="showAdvanced = !showAdvanced">
-          {{ showAdvanced ? 'Hide' : 'Show' }} Advanced Filters
-          <span class="filter-section-caret" :class="{ open: showAdvanced }">▸</span>
-        </button>
 
-        <!-- Accordion filters -->
-        <div v-show="showAdvanced" class="filter-accordion">
+        <!-- Accordion filters (visible when Custom preset is active) -->
+        <div v-show="activePreset === 'custom'" class="filter-accordion">
           <!-- Source section -->
           <div class="filter-section">
             <div class="filter-section-header" @click="toggleSection('source')">
@@ -43,26 +46,26 @@
                   <button
                     v-for="src in sourceCategories"
                     :key="src.id"
-                    class="filter-chip"
+                    class="filter-pill"
                     :class="{ active: activeSources.has(src.id) }"
                     @click="setCustom(); toggleSource(src.id)"
                   >
-                    <span class="chip-check" />{{ src.label }} {{ src.count }}
+                    {{ src.label }} <span class="pill-count">{{ src.count }}</span>
                   </button>
-                </div>
-              </div>
-              <div v-if="activeSources.has('local-kg') && kgSubSources.length > 1" class="filter-row filter-row--indented">
-                <span class="filter-row-label">DB</span>
-                <div class="sub-tabs">
-                  <button
-                    v-for="sub in kgSubSources"
-                    :key="sub.id"
-                    class="filter-chip"
-                    :class="{ active: activeKgSources.has(sub.id) }"
-                    @click="setCustom(); toggleKgSource(sub.id)"
-                  >
-                    <span class="chip-check" />{{ sub.label }} {{ sub.count }}
-                  </button>
+                  <template v-if="activeSources.has('local-kg') && kgSubSources.length > 1">
+                    <div class="filter-children-row">
+                      <div class="filter-branch-line"></div>
+                      <button
+                        v-for="sub in kgSubSources"
+                        :key="sub.id"
+                        class="filter-pill filter-pill-sm"
+                        :class="{ active: activeKgSources.has(sub.id) }"
+                        @click="setCustom(); toggleKgSource(sub.id)"
+                      >
+                        {{ sub.label }} <span class="pill-count">{{ sub.count }}</span>
+                      </button>
+                    </div>
+                  </template>
                 </div>
               </div>
             </div>
@@ -83,11 +86,11 @@
                   <button
                     v-for="src in enrichmentSources"
                     :key="src.id"
-                    class="filter-chip"
+                    class="filter-pill"
                     :class="{ active: activeEnrichment.has(src.id) }"
                     @click="setCustom(); toggleEnrichment(src.id)"
                   >
-                    <span class="chip-check" />{{ src.label }} {{ src.count }}
+                    {{ src.label }} <span class="pill-count">{{ src.count }}</span>
                   </button>
                 </div>
               </div>
@@ -104,44 +107,37 @@
               <span class="filter-section-summary">{{ relationSummary }}</span>
             </div>
             <div v-if="openSection === 'relation'" class="filter-section-body">
-              <div v-for="group in relationGroupOptions" :key="group.label" class="relation-group">
-                <div class="relation-group-header">
+              <div v-for="group in relationGroupOptions" :key="group.label" class="relation-group relation-group-horiz">
+                <div class="relation-group-main">
                   <button
-                    class="filter-chip"
+                    class="filter-pill filter-pill-group"
                     :class="{ active: isGroupFullyActive(group), partial: isGroupPartiallyActive(group) }"
                     @click="setCustom(); toggleWholeGroup(group)"
                   >
-                    <span class="chip-check" />{{ group.label }} {{ group.totalCount }}
+                    {{ group.label }} <span class="pill-count">{{ group.totalCount }}</span>
                   </button>
-                  <button
-                    v-if="group.subtypes.length > 1"
-                    class="relation-expand-btn"
-                    @click="toggleExpandedGroup(group.label)"
-                  >
-                    <span class="filter-section-caret" :class="{ open: expandedGroups.has(group.label) }">▸</span>
-                  </button>
-                </div>
-                <div v-if="expandedGroups.has(group.label)" class="relation-subtypes">
-                  <button
-                    v-for="sub in group.subtypes"
-                    :key="sub.relation"
-                    class="filter-chip filter-chip-sm"
-                    :class="{ active: activeRelations.has(sub.relation) }"
-                    @click="setCustom(); toggleRelation(sub.relation)"
-                  >
-                    <span class="chip-check" />{{ sub.label }} {{ sub.count }}
-                  </button>
+                  
+                  <div v-if="group.subtypes.length > 0 && (isGroupFullyActive(group) || isGroupPartiallyActive(group))" class="filter-children-row">
+                    <div class="filter-branch-line"></div>
+                    <div class="relation-subtypes-horiz">
+                      <button
+                        v-for="sub in group.subtypes"
+                        :key="sub.relation"
+                        class="filter-pill filter-pill-sm"
+                        :class="{ active: activeRelations.has(sub.relation) }"
+                        @click="setCustom(); toggleRelation(sub.relation)"
+                      >
+                        {{ sub.label }} <span class="pill-count">{{ sub.count }}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Status bar -->
-        <div class="graph-status-bar source-meta-badge">
-          {{ presetLabel }} · {{ filteredNodes.length }} nodes · {{ filteredEdges.length }} edges
-          <button class="reset-btn" @click="applyPreset(activePreset)">Reset</button>
-        </div>
+
       </div>
 
       <NetworkGraph :nodes="filteredNodes" :edges="filteredEdges" @node-click="handleNodeClick" />
@@ -230,7 +226,6 @@ const geneDrawer = useGeneDrawerStore();
 /* ── State ── */
 
 const activePreset = ref<PresetId>('overview');
-const showAdvanced = ref(false);
 const openSection = ref<SectionId | null>(null);
 const expandedGroups = ref(new Set<string>());
 
@@ -406,8 +401,6 @@ const relationSummary = computed(() => {
   return activeGroups.map((g) => g.label).join(' · ') || 'None';
 });
 
-const presetLabel = computed(() => presets.find((p) => p.id === activePreset.value)?.label || 'Custom');
-
 /* ── Initialize filters when data arrives ── */
 
 watch(allEdges, () => { applyPreset(activePreset.value); }, { immediate: true });
@@ -417,9 +410,7 @@ watch(allEdges, () => { applyPreset(activePreset.value); }, { immediate: true })
 function applyPreset(id: PresetId) {
   activePreset.value = id;
 
-  if (id === 'custom') {
-    return;
-  }
+  if (id === 'custom') return;
 
   const allKg = kgSubSources.value.map((s) => s.id);
   const allEnrich = enrichmentSources.value.map((s) => s.id);
@@ -465,7 +456,6 @@ function applyPreset(id: PresetId) {
 
 function setCustom() {
   activePreset.value = 'custom';
-  showAdvanced.value = true;
 }
 
 /* ── Section accordion ── */
@@ -528,33 +518,43 @@ const filteredEdges = computed(() => {
     if (edge.type === 'enrichment') {
       const src = classifyEnrichmentSource(edge);
       if (!activeEnrichment.value.has(src)) return false;
+      // Only require the source (gene) side to match node types;
+      // the target (GO/KEGG term) is implied by enabling enrichment.
+      const sourceId = resolveEdgeNodeId(edge.source);
+      return allowedNodeIds.has(sourceId);
     } else if (edge.type === 'relation') {
       const { category, db } = classifyEdgeSource(edge);
       if (!activeSources.value.has(category)) return false;
       if (category === 'local-kg' && db && !activeKgSources.value.has(db)) return false;
 
-      // Check individual relation
       const relation = edge.relation || 'associate';
       if (!activeRelations.value.has(relation)) return false;
-    } else {
-      return false;
-    }
 
-    const sourceId = resolveEdgeNodeId(edge.source);
-    const targetId = resolveEdgeNodeId(edge.target);
-    return allowedNodeIds.has(sourceId) && allowedNodeIds.has(targetId);
+      const sourceId = resolveEdgeNodeId(edge.source);
+      const targetId = resolveEdgeNodeId(edge.target);
+      return allowedNodeIds.has(sourceId) && allowedNodeIds.has(targetId);
+    }
+    return false;
   });
 });
 
 const filteredNodes = computed(() => {
   const connectedIds = new Set<string>();
+  // Collect IDs from enrichment edges separately — their targets
+  // (GO/KEGG terms) should always be included regardless of activeNodeTypes.
+  const enrichmentTargetIds = new Set<string>();
   filteredEdges.value.forEach((edge) => {
     connectedIds.add(resolveEdgeNodeId(edge.source));
     connectedIds.add(resolveEdgeNodeId(edge.target));
+    if (edge.type === 'enrichment') {
+      enrichmentTargetIds.add(resolveEdgeNodeId(edge.target));
+    }
   });
 
   return allNodes.value.filter((node) => {
     const nodeId = resolveNodeId(node);
+    // Enrichment targets bypass node type filter
+    if (enrichmentTargetIds.has(nodeId)) return true;
     const matchesType = node.type ? activeNodeTypes.value.has(node.type) : true;
     if (!matchesType) return false;
     return connectedIds.has(nodeId) || inputGeneIds.value.has(nodeId);

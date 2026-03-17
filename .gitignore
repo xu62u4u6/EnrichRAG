@@ -180,3 +180,5 @@ data/cache/
 *.jpg
 *.jpeg
 .agent/skills/web-design-guidelines
+
+tmp-plan.md

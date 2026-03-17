@@ -145,15 +145,47 @@ function render() {
   const sortedDegrees = nodes.map((n) => n.degree).sort((a, b) => b - a);
   const degreeCutoff = sortedDegrees[Math.min(LABEL_TOP_N, sortedDegrees.length - 1)] || 0;
 
+  // Add filters for drop shadows and glow
+  const filterGlow = defs.append('filter')
+    .attr('id', 'glow')
+    .attr('x', '-20%').attr('y', '-20%')
+    .attr('width', '140%').attr('height', '140%');
+  filterGlow.append('feGaussianBlur')
+    .attr('stdDeviation', '2.5')
+    .attr('result', 'blur');
+  filterGlow.append('feComposite')
+    .attr('in', 'SourceGraphic')
+    .attr('in2', 'blur')
+    .attr('operator', 'over');
+    
+  const filterShadow = defs.append('filter')
+    .attr('id', 'drop-shadow')
+    .attr('x', '-20%').attr('y', '-20%')
+    .attr('width', '140%').attr('height', '140%');
+  filterShadow.append('feDropShadow')
+    .attr('dx', '0')
+    .attr('dy', '2')
+    .attr('stdDeviation', '1.5')
+    .attr('flood-color', '#000000')
+    .attr('flood-opacity', '0.15');
+
   simulation = d3
     .forceSimulation<SimNode>(nodes)
     .force('link', d3.forceLink<SimNode, SimLink>(links).id((d: SimNode) => d.id).distance(80))
     .force('charge', d3.forceManyBody().strength(-120))
     .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide<SimNode>().radius((d: SimNode) => (typeRadius[d.type || ''] || 5) + 6));
+    .force('collision', d3.forceCollide<SimNode>().radius((d: SimNode) => (typeRadius[d.type || ''] || 5) + 6))
+    .stop();
+
+  // Pre-compute ~80% of layout, leave the rest for a smooth settle animation
+  const totalIterations = Math.ceil(Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay()));
+  const precompute = Math.floor(totalIterations * 0.8);
+  for (let i = 0; i < precompute; i++) simulation.tick();
+  simulation.alpha(0.15).restart();
 
   const link = g.append('g')
     .selectAll('line').data(links).join('line')
+    .attr('class', 'graph-link')
     .attr('stroke', edgeColor)
     .attr('stroke-opacity', edgeOpacity)
     .attr('stroke-width', (d: SimLink) => d.type === 'relation' ? 1.2 : 0.8)
@@ -166,6 +198,8 @@ function render() {
 
   const node = g.append('g')
     .selectAll<SVGGElement, SimNode>('g').data(nodes).join('g')
+    .attr('class', 'graph-node')
+    .style('cursor', 'pointer')
     .call(d3.drag<SVGGElement, SimNode>()
       .on('start', (e, d) => { if (!e.active) simulation?.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
       .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
@@ -181,10 +215,15 @@ function render() {
       const isInput = (d as { is_input?: boolean }).is_input;
       return isInput ? (nodeColor[d.type || ''] || '#1e293b') : (nodeColorLight[d.type || ''] || '#cbd5e1');
     })
-    .attr('stroke', (d: SimNode) => nodeColor[d.type || ''] || '#94a3b8')
+    .attr('stroke', (d: SimNode) => {
+      const isInput = (d as { is_input?: boolean }).is_input;
+      // Use slightly transparent white/light stroke for inner bevel effect on non-inputs
+      return isInput ? (nodeColor[d.type || ''] || '#94a3b8') : 'rgba(255,255,255,0.7)';
+    })
     .attr('stroke-width', (d: SimNode) => (d as { is_input?: boolean }).is_input ? 2 : 1)
-    .attr('stroke-opacity', 0.6)
-    .style('cursor', 'pointer');
+    .attr('stroke-opacity', (d: SimNode) => (d as { is_input?: boolean }).is_input ? 0.6 : 1)
+    .attr('filter', (d: SimNode) => (d as { is_input?: boolean }).is_input ? 'url(#glow)' : 'url(#drop-shadow)')
+    .style('transition', 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), r 0.2s ease');
 
   const nodeText = node.append('text')
     .text((d: SimNode) => d.label || d.id)
@@ -211,17 +250,25 @@ function render() {
       if (src === d.id) connected.add(tgt);
       if (tgt === d.id) connected.add(src);
     });
-    node.style('opacity', (n: SimNode) => connected.has(n.id) ? 1 : 0.12);
+    
+    // Smooth transition for nodes
+    node.classed('node-dimmed', (n: SimNode) => !connected.has(n.id));
+    d3.select(this).select('circle').style('transform', 'scale(1.25)');
+    
     // Show label for hovered node and its neighbors
     nodeText.style('display', (n: SimNode) => connected.has(n.id) ? 'block' : 'none');
-    link.style('opacity', (l: SimLink) => {
+    
+    // Smooth transition for links
+    link.classed('link-dimmed', (l: SimLink) => {
       const src = typeof l.source === 'object' ? (l.source as SimNode).id : l.source;
       const tgt = typeof l.target === 'object' ? (l.target as SimNode).id : l.target;
-      return (src === d.id || tgt === d.id) ? 1 : 0.04;
+      return !(src === d.id || tgt === d.id);
     });
   }).on('mouseout', function () {
-    node.style('opacity', 1);
-    link.style('opacity', (d: SimLink) => edgeOpacity(d));
+    node.classed('node-dimmed', false);
+    d3.select(this).select('circle').style('transform', 'scale(1)');
+    link.classed('link-dimmed', false);
+    
     // Restore label visibility
     nodeText.style('display', (d: SimNode) => {
       if ((d as { is_input?: boolean }).is_input) return 'block';
@@ -234,14 +281,19 @@ function render() {
     emit('nodeClick', d);
   });
 
-  simulation.on('tick', () => {
+  // Apply pre-computed positions
+  function updatePositions() {
     link
       .attr('x1', (d: SimLink) => (d.source as SimNode).x || 0)
       .attr('y1', (d: SimLink) => (d.source as SimNode).y || 0)
       .attr('x2', (d: SimLink) => (d.target as SimNode).x || 0)
       .attr('y2', (d: SimLink) => (d.target as SimNode).y || 0);
     node.attr('transform', (d: SimNode) => `translate(${d.x},${d.y})`);
-  });
+  }
+  updatePositions();
+
+  // Only animate on drag interactions
+  simulation.on('tick', updatePositions);
 
   // ── Legend (fixed position, outside zoom group) ──
   renderLegend(element, width, height);
@@ -287,8 +339,33 @@ function renderLegend(container: HTMLDivElement, _width: number, _height: number
 }
 
 onMounted(render);
-watch(() => [props.nodes, props.edges], render, { deep: true });
+
+let renderTimer: ReturnType<typeof setTimeout> | null = null;
+let lastFingerprint = '';
+
+watch(
+  () => {
+    const nIds = props.nodes.map((n) => getNodeId(n)).sort().join(',');
+    const eIds = props.edges.map((e) => {
+      const s = typeof e.source === 'string' ? e.source : getNodeId(e.source as GraphNode);
+      const t = typeof e.target === 'string' ? e.target : getNodeId(e.target as GraphNode);
+      return `${s}-${t}`;
+    }).sort().join(',');
+    return `${nIds}|${eIds}`;
+  },
+  (fingerprint) => {
+    if (fingerprint === lastFingerprint) return;
+    lastFingerprint = fingerprint;
+    if (renderTimer) clearTimeout(renderTimer);
+    renderTimer = setTimeout(() => {
+      renderTimer = null;
+      requestAnimationFrame(render);
+    }, 200);
+  },
+);
+
 onBeforeUnmount(() => {
+  if (renderTimer) clearTimeout(renderTimer);
   simulation?.stop();
   simulation = null;
 });

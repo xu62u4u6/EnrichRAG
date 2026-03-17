@@ -187,27 +187,40 @@ enrich(gene_set: List[str]) -> EnrichmentReport
 - [x] **Relations in LLM Prompt**: Extracted biomedical relations fed into analysis for richer interpretation
 - [x] **Result-grounded Chat Assistant**: Full-result chat context, streaming responses, and suggested follow-up questions
 - [x] **History Controls**: Authenticated users can reload, delete individually, or clear server-side saved analyses
-- [x] **Vue Web UI**: `/ui-vue` route for the modular Vue-based frontend
+- [x] **Vue Web UI**: Vue SPA served at root `/`
 - [x] **CLI Interface**: `enrichrag` command via Typer
 
 ### Frontend Notes
 
-- Main application route: `/`
-- Vue application route: `/ui-vue`
+- Application route: `/` (Vue 3 SPA, legacy static frontend removed)
 - Analysis history is stored server-side in SQLite and scoped to the authenticated user
 - Authentication uses an `HttpOnly` session cookie with `SameSite=Lax`
 - Chat answers are grounded in the current analysis result payload rather than an external database lookup
 
-### v0.2.1 - Mobile UX Polish ✅
+### v0.2.2 - Network Graph, Pipeline & Frontend Overhaul ✅
 
-- [x] **RUN PIPELINE button**: hide keyboard hint at 480px, stack action buttons vertically
-- [x] **P-value display**: `white-space: nowrap` prevents scientific notation truncation
-- [x] **Textarea height**: reduced `rows` and constrained height for compact mobile form
-- [x] **Tab scroll hint**: right-edge fade overlay indicates scrollable tabs
-- [x] **Chat drawer**: bottom-sheet style (85dvh, rounded top, translateY animation) on mobile
-- [x] **Touch targets**: nav buttons and history delete button meet 44px minimum
-- [x] **Enrichment table**: tighter term column with word-break for narrow screens
-- [x] **Layout fix**: `.main` gets explicit background and `flex: 1 1 auto` on mobile
+**Knowledge Graph & Relations**
+- [x] **Relation taxonomy**: normalized all KG sources (STRING, KEGG, Reactome, PubTator) with unified edge schema
+- [x] **Network presets**: Overview, Gene Relations, Bio Terms, Disease Context, Custom — with hierarchical relation type filters
+- [x] **Graph edge sanitization**: deduplicated edges, cleaned invalid values
+- [x] **Enrichment filter fix**: enrichment edges now correctly show in all presets (not just Bio Terms)
+
+**Pipeline & UI Polish**
+- [x] **Pipeline viz redesign**: new topology layout, state machine fixes, mobile rail
+- [x] **Chat drawer polish**: improved UX for results workspace and network tab
+- [x] **Auth form**: 8-character password hint, tighter signup spacing
+- [x] **Filter pill design**: capsule-style pills with partial state visual feedback
+
+**Frontend Architecture**
+- [x] **Single frontend**: removed legacy `/enrichrag/static`, promoted Vue SPA to root `/`
+- [x] **Duplicate router removed**: deleted unused `src/router/index.ts`
+- [x] **CSS modularized**: split 2179-line `components.css` into 14 domain-scoped files
+- [x] **Inline styles eliminated**: all static `style=""` replaced with semantic CSS classes
+- [x] **NetworkTab controls**: Advanced Filters auto-show on Custom preset, Reset pushed right, status bar simplified
+- [x] **Graph performance**: 80% pre-computed layout with settle animation, fingerprint-based watcher + debounce
+
+**Mobile**
+- [x] **9-point mobile UX overhaul**: RUN PIPELINE button stacking, p-value nowrap, textarea height, tab scroll hint, chat bottom-sheet, 44px touch targets, enrichment table word-break, `.main` flex fix
 
 ### v0.3 - Knowledge Graph: 已知關係 (Next)
 

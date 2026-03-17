@@ -177,3 +177,71 @@ input::placeholder {
   color: var(--teal-700);
 }
 
+/* Accordion filter sections (network custom filters) */
+.filter-accordion {
+  border-top: 1px solid var(--gray-100);
+  margin-bottom: 0.5rem;
+}
+
+.filter-section {
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.filter-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.filter-section-header:hover {
+  color: var(--gray-700);
+}
+
+.filter-section-left {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.filter-section-caret {
+  display: inline-block;
+  font-size: 9px;
+  color: var(--gray-400);
+  transition: transform 0.15s ease;
+  width: 10px;
+}
+
+.filter-section-caret.open {
+  transform: rotate(90deg);
+}
+
+.filter-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gray-500);
+}
+
+/* Reset button for tabs */
+.reset-btn {
+  padding: 0.25rem 0.6rem;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  background: var(--white);
+  color: var(--gray-500);
+  cursor: pointer;
+}
+
+.reset-btn:hover {
+  border-color: var(--gray-400);
+  color: var(--gray-700);
+}
+

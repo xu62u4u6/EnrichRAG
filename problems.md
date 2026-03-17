@@ -148,3 +148,9 @@ This file tracks confirmed frontend issues, maintenance debt, and suggested refa
 
 - [ ] Reduce accidental zoom interactions in the network graph.
   Possible solutions: modifier-key zoom, toggleable zoom mode, or explicit zoom controls with clearer affordances.
+
+- [x] NetworkTab controls layout cleanup.
+  Fix applied: removed standalone "Advanced Filters" toggle — filters now auto-show when Custom preset is active. Status bar no longer shows preset mode name (just "N nodes · M edges"). Reset button pushed to right via `justify-content: space-between`.
+
+- [x] Graph rendering stutter on filter changes.
+  Fix applied: replaced `deep: true` watcher with shallow length-based watch + 100ms debounce. Lowered simulation initial alpha (0.8) and increased alpha decay (0.03) for faster settle.
