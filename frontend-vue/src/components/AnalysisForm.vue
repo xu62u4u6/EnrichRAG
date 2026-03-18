@@ -33,46 +33,16 @@
 
     <p v-if="analysis.error" class="error-text error-text--spaced">{{ analysis.error }}</p>
 
-    <div v-if="analysis.validation" class="validation-panel">
-      <div class="validation-head">
-        <div>
-          <h3>Gene Validation</h3>
-          <p>Resolved symbols used by the analysis pipeline.</p>
-        </div>
-        <div class="validation-badges">
-          <span class="validation-badge accepted">Accepted {{ analysis.validation.accepted.length }}</span>
-          <span class="validation-badge remapped">Remapped {{ analysis.validation.remapped.length }}</span>
-          <span class="validation-badge rejected">Rejected {{ analysis.validation.rejected.length }}</span>
-        </div>
-      </div>
-      <div class="table-card table-card-flat">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Input Gene</th>
-                <th>Normalized Gene</th>
-                <th>Status</th>
-                <th>Source</th>
-                <th>Gene ID</th>
-                <th>Official Name</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in analysis.validation.rows" :key="`${row.input_gene}-${row.status}`">
-                <td class="cell-term">{{ row.input_gene }}</td>
-                <td>{{ row.normalized_gene || row.normalized_symbol || '—' }}</td>
-                <td><span class="status-pill" :class="row.status">{{ row.status }}</span></td>
-                <td>{{ row.source || '—' }}</td>
-                <td class="cell-overlap">{{ row.gene_id || '—' }}</td>
-                <td>{{ row.official_name || row.description || '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="validation-note">Analysis ran with {{ analysis.validation.normalized_genes.length }} normalized genes.</div>
-    </div>
+    <GeneValidationTable
+      v-if="analysis.validation"
+      :rows="analysis.validation.rows"
+      :summary="{
+        accepted: analysis.validation.accepted.length,
+        remapped: analysis.validation.remapped.length,
+        rejected: analysis.validation.rejected.length,
+      }"
+      :normalized-count="analysis.validation.normalized_genes.length"
+    />
   </div>
 </template>
 
@@ -80,6 +50,7 @@
 import { CornerDownLeft, Square } from 'lucide-vue-next';
 import { useAnalysisStore } from '../stores/analysis';
 import { useUiStore } from '../stores/ui';
+import GeneValidationTable from './GeneValidationTable.vue';
 
 const analysis = useAnalysisStore();
 const ui = useUiStore();

@@ -164,7 +164,9 @@ async def analyze_stream(
 ):
     user = _current_user(request)
     service = GeneValidationService()
-    gene_list = service.normalize_genes(_parse_genes(genes))
+    parsed_genes = _parse_genes(genes)
+    validation_result = service.validate(parsed_genes)
+    gene_list = service.normalize_genes(parsed_genes)
     if not gene_list:
         return StreamingResponse(
             iter([_sse_payload({"event": "error", "message": "No genes"})]),
@@ -202,6 +204,7 @@ async def analyze_stream(
 
                 try:
                     result = task.result()
+                    result["gene_validation"] = validation_result
                     save_analysis_run(user["id"], result)
                     yield _sse_payload({"event": "result", "data": result})
                 except Exception as e:
