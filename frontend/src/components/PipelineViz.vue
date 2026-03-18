@@ -238,8 +238,14 @@ function handleEvent(step: string, message: string) {
       break;
     case 'search':
       if (msg.includes('searching')) {
+        // Parallel retrieval starts as a fan-out step, so all three branches
+        // should visibly enter the running state immediately.
         setNode('search', 'active');
-        setLine('line-1-2a', 'done'); // data arrived at node
+        setNode('pubmed', 'active');
+        setNode('knowledge_graph', 'active');
+        setLine('line-1-2a', 'done');
+        setLine('line-1-2b', 'done');
+        setLine('line-1-2c', 'done');
       } else if (msg.includes('skipping web')) {
         setNode('search', 'done');
         setLine('line-2a-4', 'done');

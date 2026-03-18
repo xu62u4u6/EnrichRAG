@@ -64,6 +64,22 @@ p {
   font-size: 0.84rem;
 }
 
+.pipeline-progress {
+  padding: 1.5rem 0;
+}
+.progress-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.progress-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.84rem;
+  color: var(--gray-300);
+}
+
 .fade-enter-active,
 .fade-leave-active,
 .slide-enter-active,

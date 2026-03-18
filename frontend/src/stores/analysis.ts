@@ -63,6 +63,9 @@ export const useAnalysisStore = defineStore('analysis', {
       this.stream = stream;
       stream.onmessage = async (message) => {
         const payload = JSON.parse(message.data) as ProgressEvent;
+        if (payload.event !== 'graph_update' && payload.event !== 'result') {
+          console.debug('[enrichRAG pipeline]', payload.event, payload.message || '', payload.data);
+        }
         if (payload.event === 'graph_update') {
           const graphData = payload.data as { graph: PipelineResult['graph']; phase: string };
           if (!this.result) {

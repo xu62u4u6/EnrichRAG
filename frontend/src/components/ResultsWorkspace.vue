@@ -8,8 +8,8 @@
       </div>
       <div class="title-row">
         <div>
-          <h2>{{ analysis.result?.disease_context || 'No analysis loaded' }}</h2>
-          <p class="meta">Targeting <b>{{ analysis.result?.input_genes?.length || 0 }}</b> genes</p>
+          <h2>{{ analysis.result?.disease_context || (analysis.running ? analysis.disease : 'No analysis loaded') }}</h2>
+          <p class="meta">Targeting <b>{{ analysis.result?.input_genes?.length || (analysis.running ? analysis.genes.trim().split(/[\s,;]+/).length : 0) }}</b> genes</p>
         </div>
         <div class="results-actions">
           <button v-if="analysis.running" class="btn btn-danger" @click="analysis.cancelRun()"><Square :size="14" /> Stop</button>
@@ -20,7 +20,7 @@
       </div>
     </div>
 
-    <div v-if="!analysis.result" class="empty-state">
+    <div v-if="!analysis.result && !analysis.running" class="empty-state">
       Run an analysis or load one from history to populate results.
     </div>
 
@@ -28,7 +28,7 @@
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-icon teal"><Dna :size="14" /></div>
-          <div class="stat-number">{{ analysis.result.input_genes?.length || 0 }}</div>
+          <div class="stat-number">{{ analysis.result?.input_genes?.length || 0 }}</div>
           <div class="stat-label">Input Genes</div>
         </div>
         <div class="stat-card">
@@ -54,6 +54,7 @@
           :key="tab.id"
           class="tab-btn"
           :class="{ active: activeTab === tab.id }"
+          :disabled="analysis.running && !analysis.result && tab.id !== 'pipeline'"
           @click="activeTab = tab.id"
         >
           <component :is="tab.icon" :size="15" />
@@ -73,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
   CheckCircle2,
   Square,
@@ -108,6 +109,13 @@ const chat = useChatStore();
 const ui = useUiStore();
 
 const activeTab = ref<string>('pipeline');
+
+watch(
+  () => analysis.running,
+  (running) => {
+    if (running && !analysis.result) activeTab.value = 'pipeline';
+  },
+);
 
 const enrichmentKeys = computed(() => Object.keys(analysis.result?.enrichment_results || {}));
 const enrichedTermCount = computed(() =>
