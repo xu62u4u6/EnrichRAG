@@ -4,6 +4,38 @@
 
 From a gene list, EnrichRAG runs canonical enrichment (GO/KEGG), queries a local knowledge graph (STRING, KEGG, Reactome, PubTator), searches PubMed and the web, extracts biomedical relations with an LLM, and synthesizes everything into a narrative report — all streamed to a Vue 3 frontend in real time.
 
+### Input — configure gene set and disease context
+
+<p align="center">
+  <img src="docs/images/gene-input.png" width="720" alt="Gene input form" />
+</p>
+
+Enter gene symbols (comma, space, or newline separated), specify the disease context and p-value threshold, then run the full pipeline with one click.
+
+### Pipeline — real-time streaming execution
+
+<p align="center">
+  <img src="docs/images/pipeline.png" width="720" alt="Pipeline execution" />
+</p>
+
+Each step streams progress via SSE — enrichment, query planning, parallel web/PubMed search, local KG lookup, relation extraction, and LLM synthesis — with animated node states and per-step timers.
+
+### Network — interactive knowledge graph
+
+<p align="center">
+  <img src="docs/images/graph.png" width="720" alt="Network graph" />
+</p>
+
+D3 force-directed graph combining local KG relations (STRING, KEGG, Reactome, PubTator), literature-extracted relations, and enrichment term links. Five presets (Overview, Gene Relations, Bio Terms, Disease Context, Custom) with hierarchical relation-type filters.
+
+### Report — LLM-synthesized analysis
+
+<p align="center">
+  <img src="docs/images/report.png" width="720" alt="Insight report" />
+</p>
+
+Narrative report integrating enrichment signals, extracted relations, and literature evidence — with PMID citations, pathway interpretation, and novel hypothesis generation.
+
 ## Quick Start
 
 ```bash

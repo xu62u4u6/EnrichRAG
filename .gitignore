@@ -176,7 +176,7 @@ output/
 examples/output/
 data/cache/
 *.pdf
-*.png
+
 *.jpg
 *.jpeg
 .agent/skills/web-design-guidelines
