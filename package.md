@@ -1,1 +1,0 @@
-uv pip install gseapy pandas numpy scipy fastapi

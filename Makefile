@@ -5,10 +5,10 @@ dev: build backend
 
 # ── Frontend ──
 frontend:
-	cd frontend-vue && npm run dev
+	cd frontend && npm run dev
 
 build:
-	cd frontend-vue && npm run build
+	cd frontend && npm run build
 
 # ── Backend ──
 backend:
@@ -27,12 +27,12 @@ kg-rebuild:
 
 # ── Utilities ──
 typecheck:
-	cd frontend-vue && npx vue-tsc --noEmit
+	cd frontend && npx vue-tsc --noEmit
 
 lint:
 	uv run ruff check enrichrag/
-	cd frontend-vue && npx eslint src/
+	cd frontend && npx eslint src/
 
 clean:
-	rm -rf frontend-vue/dist
+	rm -rf frontend/dist
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

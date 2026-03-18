@@ -1,290 +1,198 @@
 # EnrichRAG
 
-**EnrichRAG is a modular framework that performs canonical gene set enrichment and extends it with knowledge graph retrieval, literature augmentation, and LLM-based interpretation.**
+> Gene set enrichment extended with knowledge graph retrieval, literature augmentation, and LLM-based interpretation.
 
-核心概念：從一群基因出發，透過多種手段（enrichment、knowledge graph、文獻檢索）擴充上下文，再用 LLM 做整合分析與未知探索。
+From a gene list, EnrichRAG runs canonical enrichment (GO/KEGG), queries a local knowledge graph (STRING, KEGG, Reactome, PubTator), searches PubMed and the web, extracts biomedical relations with an LLM, and synthesizes everything into a narrative report — all streamed to a Vue 3 frontend in real time.
 
----
+## Quick Start
+
+```bash
+# 1. Configure
+cp .env.example .env          # fill in OPENAI_API_KEY, TAVILY_API_KEY, PUBMED_EMAIL
+
+# 2. Install
+uv sync                       # Python deps
+cd frontend && npm i           # Frontend deps
+
+# 3. Build knowledge graph (first time, ~10 min)
+make kg-build
+
+# 4. Run
+make dev                      # → http://localhost:9001
+```
+
+## Tech Stack
+
+| Layer | Stack |
+|-------|-------|
+| Backend | Python 3.10+, FastAPI, LangChain, gseapy, Biopython |
+| Frontend | Vue 3, Pinia, D3.js 7, Vite, TypeScript |
+| LLM | GPT-4o (default, configurable) |
+| Search | Tavily (web), Entrez API (PubMed) |
+| Storage | SQLite (KG + auth + history) |
+| Streaming | Server-Sent Events (SSE) |
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    INPUT["🧬 Input Gene List"]
+    INPUT["Input Gene List"] --> VALIDATE["Gene Validation\n(NCBI normalization)"]
+    VALIDATE --> ORA["Enrichment\n(GO / KEGG ORA)"]
+    VALIDATE --> KG_LOOKUP["KG Lookup\n(STRING, KEGG, Reactome, PubTator)"]
 
-    subgraph ENRICH["Phase 1: Enrichment Analysis"]
-        ORA["GeneEnricher\n(GO / KEGG ORA)"]
+    ORA --> PLAN["Query Planning\n(LLM-driven search strategy)"]
+    PLAN --> SEARCH["Parallel Search"]
+
+    subgraph SEARCH["Parallel Search"]
+        WEB["Web Search\n(Tavily)"]
+        PUBMED["PubMed\n(Entrez API)"]
     end
 
-    subgraph GRAPH["Phase 2: Knowledge Graph Retrieval"]
-        direction TB
-        KG["KnowledgeGraph\n(NetworkX MultiDiGraph)"]
-        QUERY["Graph Query\nego_graph / PageRank"]
+    PUBMED --> EXTRACT["Relation Extraction\n(LLM structured output)"]
+    KG_LOOKUP --> MERGE["Merge Relations"]
+    EXTRACT --> MERGE
 
-        subgraph KNOWN["已知關係 (底層)"]
-            STRING["STRING DB\n(PPI)"]
-            KEGG_G["KEGG Pathway\n(調控方向)"]
-            REACTOME["Reactome\n(訊號通路)"]
-        end
+    ORA --> PROMPT["Context Assembly"]
+    MERGE --> PROMPT
+    SEARCH --> PROMPT
 
-        subgraph UNKNOWN["潛在關聯 (上層, 後續)"]
-            PUBMED_LLM["PubMed + LLM\nRelationExtractor"]
-        end
+    PROMPT --> LLM["LLM Synthesis\n(GPT-4o / Claude)"]
+    LLM --> REPORT["Analysis Report\n+ Network Graph"]
 
-        KNOWN --> KG
-        UNKNOWN -.-> KG
-        KG --> QUERY
-    end
-
-    subgraph EXPAND["Phase 3: Context Expansion"]
-        NEIGHBOR["擴充基因\n(Graph Neighbors)"]
-        ENRICH2["二次 Enrichment\n(擴充後的基因集)"]
-        PUBMED["PubMedFetcher\n(targeted abstracts)"]
-        WEB["WebSearcher\n(Tavily)"]
-    end
-
-    subgraph LLM_PHASE["Phase 4: LLM Integration"]
-        PROMPT["PromptGenerator\n(組合所有 context)"]
-        LLM["LLM Analysis\n(GPT-4o / Claude)"]
-        OUTPUT["📊 Analysis Report\n+ Novel Hypotheses"]
-    end
-
-    INPUT --> ORA
-    INPUT --> QUERY
-    QUERY --> NEIGHBOR
-    NEIGHBOR --> ENRICH2
-    ORA --> PROMPT
-    ENRICH2 --> PROMPT
-    NEIGHBOR --> PUBMED
-    PUBMED --> PROMPT
-    WEB --> PROMPT
-    PROMPT --> LLM
-    LLM --> OUTPUT
-
-    QUERY -. "gap: 圖上無路徑的基因對" .-> PUBMED_LLM
-    PUBMED_LLM -. "新關係存回圖" .-> KG
-
-    style KNOWN fill:#e8f5e9
-    style UNKNOWN fill:#fff3e0
-    style LLM_PHASE fill:#e3f2fd
+    style SEARCH fill:#f8f9fa,stroke:#dee2e6
 ```
 
----
+## Pipeline Steps
 
-## Problem Statement
+| # | Step | Description |
+|---|------|-------------|
+| 1 | **Gene Validation** | Normalize symbols against NCBI — accepted, remapped, or rejected |
+| 2 | **Enrichment** | ORA via gseapy (GO, KEGG, Reactome) filtered by p-value |
+| 3 | **Query Planning** | LLM organizes enrichment terms into a search strategy |
+| 4 | **Parallel Search** | Tavily web search + PubMed abstract retrieval (async) |
+| 5 | **KG Lookup** | Query local knowledge graph for known relations among input genes |
+| 6 | **Relation Extraction** | LLM extracts structured relations from PubMed abstracts |
+| 7 | **LLM Synthesis** | Narrative report integrating enrichment, relations, and literature |
 
-給定一組基因（gene set），研究者希望知道：
+All steps stream progress via SSE to the frontend in real time.
 
-1. 這組基因在**哪些生物功能／路徑中顯著富集**
-2. 不同資料庫（GO、KEGG…）的結果是否**一致或互補**
-3. 是否存在**文獻支持的隱含關聯**，解釋這些富集結果的生物學脈絡
+## Knowledge Graph
 
-### 現有方法的限制
+Four biological databases are imported into a local SQLite graph store with NCBI gene info for symbol normalization:
 
-* 傳統 enrichment（ORA / GSEA）：結果分散在多個資料庫，缺乏整合與語境解釋
-* 文獻閱讀：高成本、不可重現
-* LLM 直接生成：缺乏可驗證的基礎結果
+| Source | Data | URL | Format |
+|--------|------|-----|--------|
+| **NCBI Gene** | Gene symbols, aliases, IDs for Homo sapiens | [Homo_sapiens.gene_info.gz](https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz) | gzip TSV |
+| **STRING** v12.0 | Protein-protein interactions (score ≥ 700) | [protein.links.v12.0](https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz) / [aliases](https://stringdb-downloads.org/download/protein.aliases.v12.0/9606.protein.aliases.v12.0.txt.gz) | gzip text |
+| **KEGG** Pathway | Directed regulatory relations (activate, inhibit, …) | [REST API](https://rest.kegg.jp/list/pathway/hsa) → per-pathway [KGML](https://rest.kegg.jp/get/{id}/kgml) | XML |
+| **PubTator** Central | Gene-gene, gene-disease, gene-chemical co-occurrence (~39M) | [relation2pubtator3.gz](https://ftp.ncbi.nlm.nih.gov/pub/lu/PubTator3/relation2pubtator3.gz) | gzip text |
+| **Reactome** | Functional interactions with direction and score | [FIsInGene_with_annotations.txt.zip](https://reactome.org/download/tools/ReactomeFIs/FIsInGene_04142025_with_annotations.txt.zip) | ZIP TSV |
 
----
+All edges are normalized to a unified schema with 15 canonical relation types (activate, inhibit, interact, binding, phosphorylation, …) across 6 groups (Regulation, Interaction, Association, Expression, Clinical, Correlation).
 
-## Modules
-
-### Enrichment Layer
-
-| Module | Description | Status |
-|--------|-------------|--------|
-| **GeneEnricher** | ORA analysis (GO/KEGG) with gseapy | ✅ Done |
-| **PromptGenerator** | YAML template + LangChain LCEL | ✅ Done |
-
-### Retrieval Layer
-
-| Module | Description | Status |
-|--------|-------------|--------|
-| **PubMedFetcher** | Entrez API abstract retrieval | ✅ Done |
-| **WebSearcher** | Tavily Search integration | ✅ Done |
-| **RelationExtractor** | LLM-based relation extraction (Pydantic structured output) | ✅ Done |
-
-### Knowledge Graph Layer
-
-| Module | Description | Status |
-|--------|-------------|--------|
-| **KnowledgeGraph** | NetworkX MultiDiGraph wrapper with graph query | Planned |
-| **STRING DB importer** | PPI edges (`type="ppi"`) | Planned |
-| **KEGG Pathway importer** | Directed regulatory edges (`type="pathway"`) | Planned |
-
-### LLM Integration
-
-| Module | Description | Status |
-|--------|-------------|--------|
-| **LLM Chain** | GPT-4o / Claude with StrOutputParser | ✅ Done |
-
-### Web UI & Visualization
-
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **Web Interface** | FastAPI + SSE streaming pipeline | ✅ Done |
-| **Gene Validation** | Canonical gene normalization with accepted / remapped / rejected summaries | ✅ Done |
-| **Pipeline Flowchart** | Animated node states with per-step timers | ✅ Done |
-| **Network Graph** | D3.js force-directed graph (zoom/pan, color-coded entities) | ✅ Done |
-| **Report Rendering** | Markdown → styled HTML with Lora serif typography | ✅ Done |
-| **Tabbed Results** | Enrichment tables, sources, relations, insights | ✅ Done |
-| **Analysis Chat Assistant** | Result-grounded chat drawer with streaming answers and suggested questions | ✅ Done |
-| **History Management** | Load, delete, and clear authenticated server-side analysis history | ✅ Done |
-| **Vue Web UI** | Dedicated `/ui-vue` frontend for the modular Vue-based interface | ✅ Done |
-
----
-
-## Core API
-
-```python
-enrich(gene_set: List[str]) -> EnrichmentReport
+```bash
+make kg-build     # download + import all sources (~10 min)
+make kg-rebuild   # force re-download
 ```
 
-### EnrichmentReport schema
+Data is stored at `~/.enrichrag/knowledge_graph/data/` (downloads → processed TSV → SQLite).
 
-```json
-{
-  "input_genes": [...],
-  "databases": ["GO", "KEGG"],
-  "results": {
-    "GO": [...],
-    "KEGG": [...]
-  }
-}
+## Frontend
+
+Vue 3 SPA with tabbed results workspace:
+
+- **Pipeline Flowchart** — animated node states with per-step timers
+- **Network Graph** — D3 force-directed visualization with 5 presets (Overview, Gene Relations, Bio Terms, Disease Context, Custom) and hierarchical relation filters
+- **Enrichment Tables** — GO/KEGG results with sortable columns
+- **Gene Validation** — accepted/remapped/rejected breakdown
+- **Report** — Markdown rendered with Lora serif typography
+- **Chat Assistant** — result-grounded Q&A with streaming answers
+- **History** — server-side analysis storage with load/delete
+
+## API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/analyze/stream` | SSE pipeline stream (`genes`, `disease`, `pval` params) |
+| POST | `/api/chat` | SSE result-grounded chat |
+| POST | `/api/genes/validate` | Validate gene list |
+| GET | `/api/genes/{symbol}` | Gene profile lookup |
+| GET | `/api/history` | List saved analyses |
+| POST | `/api/auth/login` | Session login |
+| POST | `/api/auth/register` | Register (invite code required) |
+
+Auth via `HttpOnly` session cookie (`SameSite=Lax`). All endpoints except auth require authentication.
+
+## Configuration
+
+```env
+# Required
+OPENAI_API_KEY=sk-...
+TAVILY_API_KEY=tvly-...
+PUBMED_EMAIL=your@email.com
+
+# Optional
+LLM_MODEL=gpt-4o              # Pipeline LLM model
+LOG_LEVEL=INFO
+URL_PREFIX=""                  # Route prefix for reverse proxy
+KG_ENABLED=true                # Toggle local KG
+AUTH_INVITE_CODE=enrichrag-invite
+AUTH_SECURE_COOKIES=false      # true for HTTPS production
 ```
 
-### Relation Table schema
+## Project Structure
 
 ```
-| Source Gene | Target Gene | Relation | Type    | Source DB | Evidence                        |
-|-------------|-------------|----------|---------|-----------|---------------------------------|
-| TP53        | EGFR        | up       | pathway | KEGG      | KEGG:hsa05200                   |
-| TP53        | MDM2        | up       | ppi     | STRING    | combined_score=0.999            |
-| RBM10       | MYC         | down     | llm     | PubMed    | "...inhibiting transcription..." |
-```
+enrichrag/
+├── api/                # FastAPI app, routes, models
+├── core/               # Pipeline, enricher, search, extraction
+├── knowledge_graph/    # SQLite KG, loaders, relation taxonomy
+├── prompts/            # LangChain prompt templates
+├── cli.py              # Typer CLI
+└── settings.py         # Pydantic Settings
 
----
+frontend/
+├── src/
+│   ├── components/     # Vue components (15+)
+│   ├── stores/         # Pinia state management
+│   ├── services/       # API client
+│   ├── styles/         # Domain-scoped CSS modules (14 files)
+│   └── types.ts        # TypeScript definitions
+└── dist/               # Build output (served by FastAPI)
+```
 
 ## Roadmap
 
-### v0.1 - Core Framework ✅
+### v0.1 — Core Framework ✅
 
-- [x] **GeneEnricher**: ORA analysis (GO/KEGG)
-- [x] **PromptGenerator**: YAML template + LangChain LCEL
-- [x] **LLM Integration**: GPT-4o chain with StrOutputParser
-- [x] **WebSearcher**: Tavily Search integration
-- [x] **PubMedFetcher**: Entrez API abstract retrieval
-- [x] **RelationExtractor**: LLM-based relation extraction with Pydantic structured output
+Enrichment engine (gseapy ORA), LLM chain (GPT-4o), PubMed/web search, relation extraction.
 
-### v0.2 - Web UI & Pipeline Integration ✅
+### v0.2 — Web UI & Pipeline ✅
 
-- [x] **Web UI**: FastAPI backend + single-page frontend with SSE streaming
-- [x] **Gene Validation**: Normalize symbols before analysis with accepted / remapped / rejected feedback
-- [x] **Pipeline Orchestration**: Enrichment → parallel search (Web + PubMed) → relation extraction → LLM synthesis
-- [x] **Animated Pipeline Flowchart**: Real-time node status with elapsed timers, timeout/failure states
-- [x] **D3 Network Graph**: Force-directed visualization with zoom/pan, lazy rendering
-- [x] **Report Typography**: Lora serif font, wider layout, structured Markdown headings
-- [x] **Relations in LLM Prompt**: Extracted biomedical relations fed into analysis for richer interpretation
-- [x] **Result-grounded Chat Assistant**: Full-result chat context, streaming responses, and suggested follow-up questions
-- [x] **History Controls**: Authenticated users can reload, delete individually, or clear server-side saved analyses
-- [x] **Vue Web UI**: Vue SPA served at root `/`
-- [x] **CLI Interface**: `enrichrag` command via Typer
+FastAPI + SSE streaming, Vue SPA, gene validation, pipeline flowchart, D3 network graph, chat assistant, history management, CLI.
 
-### Frontend Notes
+### v0.2.2 — Network & Frontend Overhaul ✅
 
-- Application route: `/` (Vue 3 SPA, legacy static frontend removed)
-- Analysis history is stored server-side in SQLite and scoped to the authenticated user
-- Authentication uses an `HttpOnly` session cookie with `SameSite=Lax`
-- Chat answers are grounded in the current analysis result payload rather than an external database lookup
+Relation taxonomy (15 types × 4 sources), network presets with hierarchical filters, CSS modularization (14 domain-scoped files), inline style elimination, graph pre-computed layout, 9-point mobile UX overhaul.
 
-### v0.2.2 - Network Graph, Pipeline & Frontend Overhaul ✅
+### v0.3 — Knowledge Graph ✅
 
-**Knowledge Graph & Relations**
-- [x] **Relation taxonomy**: normalized all KG sources (STRING, KEGG, Reactome, PubTator) with unified edge schema
-- [x] **Network presets**: Overview, Gene Relations, Bio Terms, Disease Context, Custom — with hierarchical relation type filters
-- [x] **Graph edge sanitization**: deduplicated edges, cleaned invalid values
-- [x] **Enrichment filter fix**: enrichment edges now correctly show in all presets (not just Bio Terms)
+SQLite-backed KG with unified edge schema. Importers for STRING v12.0, KEGG Pathway, PubTator Central, Reactome. Pipeline integration: KG relations merged into analysis context and network visualization.
 
-**Pipeline & UI Polish**
-- [x] **Pipeline viz redesign**: new topology layout, state machine fixes, mobile rail
-- [x] **Chat drawer polish**: improved UX for results workspace and network tab
-- [x] **Auth form**: 8-character password hint, tighter signup spacing
-- [x] **Filter pill design**: capsule-style pills with partial state visual feedback
+### v0.4 — Graph Expansion & Gap Discovery (Next)
 
-**Frontend Architecture**
-- [x] **Single frontend**: removed legacy `/enrichrag/static`, promoted Vue SPA to root `/`
-- [x] **Duplicate router removed**: deleted unused `src/router/index.ts`
-- [x] **CSS modularized**: split 2179-line `components.css` into 14 domain-scoped files
-- [x] **Inline styles eliminated**: all static `style=""` replaced with semantic CSS classes
-- [x] **NetworkTab controls**: Advanced Filters auto-show on Custom preset, Reset pushed right, status bar simplified
-- [x] **Graph performance**: 80% pre-computed layout with settle animation, fingerprint-based watcher + debounce
+- `get_neighbors()` — ego subgraph expansion → second-round enrichment
+- `rank_nodes()` — degree / PageRank scoring
+- Gap detection — find unlinked gene pairs → PubMed → LLM extraction → graph grows with usage
+- Gene-pair level cache (current cache is PMID-level only)
 
-**Mobile**
-- [x] **9-point mobile UX overhaul**: RUN PIPELINE button stacking, p-value nowrap, textarea height, tab scroll hint, chat bottom-sheet, 44px touch targets, enrichment table word-break, `.main` flex fix
+### v0.5 — Visualization Enhancements
 
-### v0.3 - Knowledge Graph: 已知關係 (Next)
+- Enrichment bar chart (-log10 p-adjusted), dot plot, gene-term heatmap
+- `/api/graph` dedicated endpoint
 
-**KnowledgeGraph module**
-- [ ] `KnowledgeGraph` class (NetworkX MultiDiGraph wrapper)
-  - [ ] Unified edge schema: `(source, target, {type, direction, source_db, evidence, ...})`
-  - [ ] `add_relations(df)` — batch add edges from DataFrame
-  - [ ] `get_neighbors(gene, radius)` — ego subgraph
-  - [ ] `rank_nodes(method)` — degree / PageRank
-  - [ ] `to_context(genes)` — convert to text for prompt injection
-  - [ ] Persistence: save/load GraphML or JSON
+### v1.0 — Full Pipeline
 
-**Import known biological graphs**
-- [ ] **STRING DB** — download TSV, import PPI edges (`type="ppi"`)
-- [ ] **KEGG Pathway** — import directed regulatory edges (`type="pathway"`)
-- [ ] **PubTator Central** — bulk co-occurrence edges from FTP. Provides low-cost, large-scale gene-gene and gene-disease co-occurrence relationships mined from PubMed abstracts.
-- [ ] (optional) Reactome / DisGeNET
-
-**Pipeline integration**
-- [ ] `genes → KnowledgeGraph.get_neighbors() → expanded_genes`
-- [ ] `expanded_genes → GeneEnricher (second-round enrichment)`
-- [ ] `expanded_genes → PubMedFetcher (targeted search)`
-- [ ] All context assembled → PromptGenerator → LLM
-
-### v0.4 - Knowledge Graph: 潛在關聯 (Future)
-
-**LLM-based Relation Extraction (on-demand)**
-- [ ] Detect gaps: find gene pairs with no path in graph
-- [ ] For gap pairs → PubMedFetcher → RelationExtractor → extract relations
-- [ ] Store new relations back to KnowledgeGraph (graph grows with usage)
-- [ ] Cache layer: avoid duplicate queries for same gene pairs
-
-### v0.5 - Visualization Enhancements (Future)
-
-**Enrichment Charts**
-- [ ] Enrichment bar chart — top GO/KEGG terms sorted by -log10(p-adjusted)
-- [ ] Dot plot — x=gene count, y=term, size=overlap ratio, color=p-value
-- [ ] Gene-term heatmap — overlap matrix (genes × pathways)
-
-**Network Graph Enhancements**
-- [ ] Node sizing by degree / PageRank, edge coloring by relation type
-- [ ] Interactive: hover to highlight neighbors, click to inspect evidence
-- [ ] `/api/graph` endpoint — return graph JSON for frontend rendering
-
-### v1.0 - Full Pipeline (Future)
-
-- [ ] CLI: `enrichrag analyze --genes TP53 KRAS EGFR --disease cancer`
-- [ ] Single command: enrich → graph expand → literature → LLM report
-- [ ] PubMed query cache (SQLite/Parquet)
-- [ ] (optional) Embedding index for semantic retrieval (ChromaDB)
-- [ ] (optional) Neo4j to replace NetworkX for large persistent graphs
-
-### Operations, Security, and Deployment
-
-- [x] Store passwords as salted PBKDF2 hashes instead of plaintext
-- [x] Use server-side session tokens rather than storing credentials in the browser
-- [x] Store auth state in an `HttpOnly` cookie with `SameSite=Lax`
-- [x] Scope saved analysis history to the authenticated user via `user_id`
-- [x] Enforce owner checks when loading or deleting saved history items
-- [x] Expire sessions server-side using `expires_at`
-- [ ] Enable `Secure` cookies in production over HTTPS
-- [ ] Add login rate limiting / brute-force protection on auth endpoints
-- [ ] Add CSRF protection for cookie-authenticated state-changing requests if the app is exposed beyond a trusted same-site deployment
-- [ ] Add account lifecycle controls such as password reset, email verification, or admin-managed provisioning if external users are expected
-- [ ] Review session revocation strategy for multi-session management
-- [ ] Review SQLite file permissions and deployment storage location for shared/lab environments
-- [ ] Consider audit logging for sign-in, sign-out, registration, and destructive history actions
+- Single CLI command: enrich → graph expand → literature → report
+- PubMed query cache
+- (optional) Embedding index (ChromaDB), Neo4j for large graphs

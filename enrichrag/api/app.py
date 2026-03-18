@@ -15,10 +15,10 @@ from enrichrag.settings import settings
 _prefix = settings.url_prefix.strip("/")
 prefix = f"/{_prefix}" if _prefix else ""
 
-app = FastAPI(title="enrichRAG", version="0.2.0")
+app = FastAPI(title="enrichRAG", version="0.3.0")
 app.include_router(router, prefix=prefix)
 
-VUE_UI_DIR = Path(__file__).resolve().parents[2] / "frontend-vue" / "dist"
+VUE_UI_DIR = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 # Serve Vue built assets
 if (VUE_UI_DIR / "assets").exists():
@@ -34,7 +34,7 @@ def _render_vue_html() -> HTMLResponse:
     index_path = VUE_UI_DIR / "index.html"
     if not index_path.exists():
         return HTMLResponse(
-            "<h1>Vue UI build not found</h1><p>Run `npm run build` inside `frontend-vue/`.</p>",
+            "<h1>Vue UI build not found</h1><p>Run `npm run build` inside `frontend/`.</p>",
             status_code=503,
         )
     html = index_path.read_text(encoding="utf-8")
