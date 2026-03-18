@@ -167,7 +167,10 @@ gseapy_output/
 enrichr_output/
 
 # Claude Code / AI agents
-.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/enrichrag/
 .agents/
 skills-lock.json
 
@@ -179,6 +182,5 @@ data/cache/
 
 *.jpg
 *.jpeg
-.agent/skills/web-design-guidelines
-
+.agent
 tmp-plan.md
