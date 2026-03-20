@@ -21,6 +21,7 @@
 - [ ] Dot plot — x=gene count, y=term, size=overlap ratio, color=p-value
 - [ ] Gene-term heatmap — overlap matrix (genes × pathways)
 - [ ] `/api/graph` endpoint — dedicated graph JSON (currently embedded in SSE result payload)
+- [ ] Graph export — support exporting network visualization (PNG/PDF/JSON)
 
 ## v1.0 — Full Pipeline
 

@@ -38,19 +38,30 @@ Narrative report integrating enrichment signals, extracted relations, and litera
 
 ## Quick Start
 
+> **Prerequisites:**
+> - [OpenAI API key](https://platform.openai.com/api-keys) (paid, credit card required)
+> - [Tavily API key](https://tavily.com/) (free tier: 1,000 searches/month)
+> - A valid email for [NCBI Entrez API](https://www.ncbi.nlm.nih.gov/account/)
+> - Python 3.10+ (recommended: [uv](https://docs.astral.sh/uv/getting-started/installation/))
+> - Node.js 18+, npm
+
 ```bash
-# 1. Configure
-cp .env.example .env          # fill in OPENAI_API_KEY, TAVILY_API_KEY, PUBMED_EMAIL
+# 1. Configure (fill in your API keys)
+cp .env.example .env
 
 # 2. Install
-uv sync                       # Python deps
-cd frontend && npm i           # Frontend deps
+uv sync                            # Python deps
+npm --prefix frontend install      # Frontend deps (requires Node.js 18+)
 
-# 3. Build knowledge graph (first time, ~10 min)
+# 3. Build knowledge graph (first time, ~10 min, ~5 GB disk)
+#    To skip this step, set KG_ENABLED=false in .env
 make kg-build
 
 # 4. Run
-make dev                      # → http://localhost:9001
+make dev                           # → http://localhost:9001
+
+# 5. Verify installation
+uv run enrichrag version
 ```
 
 ## Tech Stack
@@ -58,7 +69,7 @@ make dev                      # → http://localhost:9001
 | Layer | Stack |
 |-------|-------|
 | Backend | Python 3.10+, FastAPI, LangChain, gseapy, Biopython |
-| Frontend | Vue 3, Pinia, D3.js 7, Vite, TypeScript |
+| Frontend | Vue 3, Pinia, D3.js 7, Vite 5, TypeScript (Node.js 18+) |
 | LLM | GPT-4o (default, configurable) |
 | Search | Tavily (web), Entrez API (PubMed) |
 | Storage | SQLite (KG + auth + history) |
@@ -96,15 +107,15 @@ flowchart TD
 
 ## Pipeline Steps
 
-| # | Step | Description |
-|---|------|-------------|
-| 1 | **Gene Validation** | Normalize symbols against NCBI — accepted, remapped, or rejected |
-| 2 | **Enrichment** | ORA via gseapy (GO, KEGG, Reactome) filtered by p-value |
-| 3 | **Query Planning** | LLM organizes enrichment terms into a search strategy |
-| 4 | **Parallel Search** | Tavily web search + PubMed abstract retrieval (async) |
-| 5 | **KG Lookup** | Query local knowledge graph for known relations among input genes |
-| 6 | **Relation Extraction** | LLM extracts structured relations from PubMed abstracts |
-| 7 | **LLM Synthesis** | Narrative report integrating enrichment, relations, and literature |
+| # | Step | Input | Output |
+|---|------|-------|--------|
+| 1 | **Gene Validation** | Raw gene symbols | Normalized symbol list (accepted / remapped / rejected) |
+| 2 | **Enrichment** | Normalized gene list | GO/KEGG/Reactome ORA results (filtered by p-value) |
+| 3 | **Query Planning** | Enrichment terms + disease context | Structured search strategy (queries + rationale) |
+| 4 | **Parallel Search** | Search queries | Tavily web results + PubMed abstracts |
+| 5 | **KG Lookup** | Gene list | Known relations from local KG (STRING, KEGG, Reactome, PubTator) |
+| 6 | **Relation Extraction** | PubMed abstracts | Structured gene-gene / gene-disease relations (JSON) |
+| 7 | **LLM Synthesis** | Enrichment + relations + literature | Narrative report with citations + network graph |
 
 All steps stream progress via SSE to the frontend in real time.
 
@@ -123,11 +134,13 @@ Four biological databases are imported into a local SQLite graph store with NCBI
 All edges are normalized to a unified schema with 15 canonical relation types (activate, inhibit, interact, binding, phosphorylation, …) across 6 groups (Regulation, Interaction, Association, Expression, Clinical, Correlation).
 
 ```bash
-make kg-build     # download + import all sources (~10 min)
-make kg-rebuild   # force re-download
+make kg-build                          # download + import all sources (~10 min)
+make kg-rebuild                        # force re-download
+enrichrag kg build --source string     # rebuild only STRING (others preserved)
+enrichrag kg status                    # show edge counts, disk usage per source
 ```
 
-Data is stored at `~/.enrichrag/knowledge_graph/data/` (downloads → processed TSV → SQLite).
+Data is stored at `~/.enrichrag/knowledge_graph/data/` (downloads → processed TSV → SQLite). To reset, delete `~/.enrichrag/knowledge_graph/` and re-run `make kg-build`.
 
 ## Frontend
 
@@ -141,11 +154,32 @@ Vue 3 SPA with tabbed results workspace:
 - **Chat Assistant** — result-grounded Q&A with streaming answers
 - **History** — server-side analysis storage with load/delete
 
+## CLI
+
+After installation, the `enrichrag` command is available:
+
+```bash
+# Run analysis pipeline
+enrichrag analyze TP53 KRAS EGFR --disease cancer --pval 0.05
+
+# Start web server
+enrichrag serve --port 9001
+
+# Knowledge graph management
+enrichrag kg build                    # download + import all sources
+enrichrag kg build --source string    # rebuild single source
+enrichrag kg build --force            # force re-download
+enrichrag kg status                   # show DB stats and disk usage
+
+# Version
+enrichrag version
+```
+
 ## API
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/analyze/stream` | SSE pipeline stream (`genes`, `disease`, `pval` params) |
+| GET | `/api/analyze/stream` | SSE pipeline stream |
 | POST | `/api/chat` | SSE result-grounded chat |
 | POST | `/api/genes/validate` | Validate gene list |
 | GET | `/api/genes/{symbol}` | Gene profile lookup |
@@ -154,6 +188,23 @@ Vue 3 SPA with tabbed results workspace:
 | POST | `/api/auth/register` | Register (invite code required) |
 
 Auth via `HttpOnly` session cookie (`SameSite=Lax`). All endpoints except auth require authentication.
+
+### Example: SSE pipeline stream
+
+```bash
+curl "http://localhost:9001/api/analyze/stream?genes=TP53,KRAS,EGFR&disease=cancer&pval=0.05" \
+  -H "Cookie: session=<your-session-cookie>"
+
+# Response: Server-Sent Events
+# event: step
+# data: {"step": "enrichment", "status": "running", "message": "Running ORA..."}
+#
+# event: step
+# data: {"step": "enrichment", "status": "done", "data": {...}}
+#
+# event: done
+# data: {"report": "...", "graph": {...}}
+```
 
 ## Configuration
 
@@ -225,6 +276,5 @@ SQLite-backed KG with unified edge schema. Importers for STRING v12.0, KEGG Path
 
 ### v1.0 — Full Pipeline
 
-- Single CLI command: enrich → graph expand → literature → report
 - PubMed query cache
 - (optional) Embedding index (ChromaDB), Neo4j for large graphs

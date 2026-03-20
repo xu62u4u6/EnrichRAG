@@ -26,7 +26,13 @@ class KGSource(str, Enum):
 @app.command()
 def version() -> None:
     """Show version."""
-    typer.echo("enrichrag 0.1.0")
+    from importlib.metadata import version as pkg_version
+
+    try:
+        ver = pkg_version("enrichrag")
+    except Exception:
+        ver = "unknown"
+    typer.echo(f"enrichrag {ver}")
 
 
 @app.command()
