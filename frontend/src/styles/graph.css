@@ -6,6 +6,7 @@
   border-radius: 12px;
   overflow: hidden;
   isolation: isolate;
+  contain: layout style paint;
 }
 
 .graph-canvas::before {

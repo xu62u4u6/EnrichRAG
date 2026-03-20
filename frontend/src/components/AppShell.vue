@@ -1,6 +1,7 @@
 <template>
   <div class="app-frame ui-refactor-body">
-    <section v-if="!auth.bootstrapped || !auth.isAuthenticated" class="auth-shell active">
+    <div v-if="!auth.bootstrapped" class="app-loading"></div>
+    <section v-else-if="!auth.isAuthenticated" class="auth-shell active">
       <div class="auth-crosshair auth-crosshair-v"></div>
       <div class="auth-crosshair auth-crosshair-h"></div>
       <div class="auth-panel">
@@ -52,7 +53,7 @@
             <div class="sidebar-user-name">{{ auth.user?.display_name || 'Lab Operator' }}</div>
             <div class="sidebar-user-handle">@{{ usernameHandle }}</div>
           </div>
-          <button class="sidebar-signout" @click="handleLogout" aria-label="Sign out">
+          <button class="sidebar-signout" @click="handleLogout" aria-label="Sign out" title="Sign out">
             <LogOut :size="15" />
           </button>
         </div>

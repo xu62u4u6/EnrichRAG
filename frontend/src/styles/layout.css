@@ -5,6 +5,10 @@
   position: relative;
 }
 
+.app-loading {
+  flex: 1;
+}
+
 .ui-refactor-body::before {
   content: none;
 }

@@ -55,7 +55,6 @@ These issues contribute to the app looking like a generic admin dashboard rather
 | # | Element | Issue |
 |---|---------|-------|
 | D7 | Insight Report | Pure Markdown rendering (h2 → h3 → bullets), reads like raw ChatGPT output, no custom report layout |
-| D8 | Pipeline flowchart | Static circles + checkmarks, identical to CSS flowchart library defaults, parallel steps not visually differentiated |
 | D9 | Color scheme | Monochrome (white/black/gray) throughout, no brand color or visual anchor |
 
 ---
@@ -66,7 +65,7 @@ These issues contribute to the app looking like a generic admin dashboard rather
 |----------|-------|-----------|
 | P0 | F1, F2, F3, F4, F6 | Unusable features + data integrity risk + accidental deletion |
 | P1 | F5, F7, F8, F9, C3, C6 | Flow comprehension + interaction safety + SSE resilience |
-| P2 | F10, F12, D7, D8 | Info density: report layout, pipeline duration, header hierarchy |
+| P2 | F10, F12, D7 | Info density: report layout, pipeline duration, header hierarchy |
 | P3 | D1–D6, D9 | Brand identity and domain-specific design |
 
 > **Codex review conclusion (2026-03-20):** The root issue is not individual component bugs — it's simultaneous weakness in information architecture, responsiveness, interaction safety, and product identity. Fix structure before visuals, otherwise new issues keep emerging. Priority order: unusable → flow comprehension → interaction safety → brand identity.
@@ -92,8 +91,6 @@ These issues contribute to the app looking like a generic admin dashboard rather
 **F8 — Logout tooltip:** Add `title` attribute or tooltip component; use recognizable logout icon (door + arrow).
 
 **D7 — Report layout:** Add table of contents sidebar; highlight gene names as clickable pills; add "Export PDF" action.
-
-**D8 — Pipeline:** Show per-step duration; visually differentiate parallel retrieval as branching flow; add data-flow animation on edges.
 
 ---
 

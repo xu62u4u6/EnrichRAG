@@ -1,10 +1,9 @@
 <template>
-  <transition name="slide">
-    <aside v-if="geneDrawer.activeGeneProfile" class="gene-drawer open">
+    <aside class="gene-drawer" :class="{ open: !!geneDrawer.activeGeneProfile }">
       <div class="drawer-header">
         <div>
           <div class="drawer-kicker">Gene Profile</div>
-          <h3>{{ geneDrawer.activeGeneProfile.canonical_symbol }}</h3>
+          <h3>{{ geneDrawer.activeGeneProfile?.canonical_symbol }}</h3>
         </div>
         <button class="drawer-close" @click="geneDrawer.closeGene()" aria-label="Close gene info">
           <X :size="18" />
@@ -73,7 +72,6 @@
         </div>
       </div>
     </aside>
-  </transition>
 </template>
 
 <script setup lang="ts">

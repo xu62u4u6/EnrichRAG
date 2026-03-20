@@ -145,29 +145,18 @@ function render() {
   const sortedDegrees = nodes.map((n) => n.degree).sort((a, b) => b - a);
   const degreeCutoff = sortedDegrees[Math.min(LABEL_TOP_N, sortedDegrees.length - 1)] || 0;
 
-  // Add filters for drop shadows and glow
+  // Lightweight filters — only applied to input genes to reduce compositing cost
   const filterGlow = defs.append('filter')
     .attr('id', 'glow')
-    .attr('x', '-20%').attr('y', '-20%')
-    .attr('width', '140%').attr('height', '140%');
+    .attr('x', '-30%').attr('y', '-30%')
+    .attr('width', '160%').attr('height', '160%');
   filterGlow.append('feGaussianBlur')
-    .attr('stdDeviation', '2.5')
+    .attr('stdDeviation', '2')
     .attr('result', 'blur');
   filterGlow.append('feComposite')
     .attr('in', 'SourceGraphic')
     .attr('in2', 'blur')
     .attr('operator', 'over');
-    
-  const filterShadow = defs.append('filter')
-    .attr('id', 'drop-shadow')
-    .attr('x', '-20%').attr('y', '-20%')
-    .attr('width', '140%').attr('height', '140%');
-  filterShadow.append('feDropShadow')
-    .attr('dx', '0')
-    .attr('dy', '2')
-    .attr('stdDeviation', '1.5')
-    .attr('flood-color', '#000000')
-    .attr('flood-opacity', '0.15');
 
   simulation = d3
     .forceSimulation<SimNode>(nodes)
@@ -222,7 +211,7 @@ function render() {
     })
     .attr('stroke-width', (d: SimNode) => (d as { is_input?: boolean }).is_input ? 2 : 1)
     .attr('stroke-opacity', (d: SimNode) => (d as { is_input?: boolean }).is_input ? 0.6 : 1)
-    .attr('filter', (d: SimNode) => (d as { is_input?: boolean }).is_input ? 'url(#glow)' : 'url(#drop-shadow)')
+    .attr('filter', (d: SimNode) => (d as { is_input?: boolean }).is_input ? 'url(#glow)' : null)
     .style('transition', 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), r 0.2s ease');
 
   const nodeText = node.append('text')
@@ -277,7 +266,8 @@ function render() {
   });
 
   // Click
-  node.on('click', function (_e: MouseEvent, d: SimNode) {
+  node.on('dblclick', function (_e: MouseEvent, d: SimNode) {
+    _e.stopPropagation();
     emit('nodeClick', d);
   });
 
@@ -292,8 +282,9 @@ function render() {
   }
   updatePositions();
 
-  // Only animate on drag interactions
   simulation.on('tick', updatePositions);
+  // Stop simulation after settle to free main thread
+  simulation.on('end', () => { simulation?.stop(); });
 
   // ── Legend (fixed position, outside zoom group) ──
   renderLegend(element, width, height);

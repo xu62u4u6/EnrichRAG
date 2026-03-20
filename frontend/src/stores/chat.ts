@@ -16,7 +16,7 @@ async function* readSseLikeStream(response: Response) {
     for (const chunk of chunks) {
       const lines = chunk.split('\n').filter((line) => line.startsWith('data: '));
       for (const line of lines) {
-        yield JSON.parse(line.slice(6));
+        try { yield JSON.parse(line.slice(6)); } catch { /* skip malformed */ }
       }
     }
   }

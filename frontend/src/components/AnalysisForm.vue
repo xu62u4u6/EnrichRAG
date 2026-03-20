@@ -33,16 +33,18 @@
 
     <p v-if="analysis.error" class="error-text error-text--spaced">{{ analysis.error }}</p>
 
-    <GeneValidationTable
-      v-if="analysis.validation"
-      :rows="analysis.validation.rows"
-      :summary="{
-        accepted: analysis.validation.accepted.length,
-        remapped: analysis.validation.remapped.length,
-        rejected: analysis.validation.rejected.length,
-      }"
-      :normalized-count="analysis.validation.normalized_genes.length"
-    />
+    <transition name="slide-down">
+      <GeneValidationTable
+        v-if="analysis.validation"
+        :rows="analysis.validation.rows"
+        :summary="{
+          accepted: analysis.validation.accepted.length,
+          remapped: analysis.validation.remapped.length,
+          rejected: analysis.validation.rejected.length,
+        }"
+        :normalized-count="analysis.validation.normalized_genes.length"
+      />
+    </transition>
   </div>
 </template>
 
@@ -66,8 +68,12 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 async function validate() {
-  await analysis.validateGenes();
-  ui.showToast('Gene validation complete');
+  try {
+    await analysis.validateGenes();
+    ui.showToast('Gene validation complete');
+  } catch (e) {
+    ui.showToast('Validation failed');
+  }
 }
 
 function run() {

@@ -1,56 +1,28 @@
+import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 
-const allowedTags = new Set(['A', 'B', 'BLOCKQUOTE', 'BR', 'CODE', 'EM', 'H1', 'H2', 'H3', 'H4', 'HR', 'I', 'LI', 'OL', 'P', 'PRE', 'STRONG', 'UL']);
-const allowedAttrs: Record<string, Set<string>> = {
-  A: new Set(['href', 'target', 'rel']),
-};
+// Allow standard Markdown tags + tables
+const ALLOWED_TAGS = [
+  'a', 'b', 'blockquote', 'br', 'code', 'em', 'h1', 'h2', 'h3', 'h4',
+  'hr', 'i', 'li', 'ol', 'p', 'pre', 'strong', 'ul',
+  'table', 'thead', 'tbody', 'tr', 'th', 'td',
+];
 
-function sanitizeNode(node: ChildNode) {
-  if (node.nodeType === Node.TEXT_NODE) return;
-  if (node.nodeType !== Node.ELEMENT_NODE) {
-    node.remove();
-    return;
+const ALLOWED_ATTR = ['href', 'target', 'rel'];
+
+// Force all links to open in new tab safely
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName === 'A') {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
   }
-
-  const element = node as HTMLElement;
-  if (!allowedTags.has(element.tagName)) {
-    const fragment = document.createDocumentFragment();
-    while (element.firstChild) fragment.appendChild(element.firstChild);
-    element.replaceWith(fragment);
-    return;
-  }
-
-  Array.from(element.attributes).forEach((attr) => {
-    const allowed = allowedAttrs[element.tagName];
-    if (!allowed || !allowed.has(attr.name)) {
-      element.removeAttribute(attr.name);
-      return;
-    }
-    if (element.tagName === 'A' && attr.name === 'href') {
-      try {
-        const parsed = new URL(attr.value, window.location.origin);
-        if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) {
-          element.setAttribute('href', '#');
-        } else {
-          element.setAttribute('href', parsed.href);
-        }
-      } catch {
-        element.setAttribute('href', '#');
-      }
-    }
-  });
-
-  if (element.tagName === 'A') {
-    element.setAttribute('target', '_blank');
-    element.setAttribute('rel', 'noopener noreferrer');
-  }
-
-  Array.from(element.childNodes).forEach(sanitizeNode);
-}
+});
 
 export function renderMarkdownSafe(markdown: string) {
-  const template = document.createElement('template');
-  template.innerHTML = marked.parse(markdown || '') as string;
-  Array.from(template.content.childNodes).forEach(sanitizeNode);
-  return template.innerHTML;
+  const raw = marked.parse(markdown || '') as string;
+  return DOMPurify.sanitize(raw, {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR,
+    ALLOW_DATA_ATTR: false,
+  });
 }

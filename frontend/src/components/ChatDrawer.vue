@@ -1,6 +1,5 @@
 <template>
-  <transition name="slide">
-    <aside v-if="chat.open" class="chat-drawer open">
+    <aside class="chat-drawer" :class="{ open: chat.open }">
       <div class="drawer-header">
         <div>
           <div class="drawer-kicker">Analysis QA</div>
@@ -58,7 +57,6 @@
         <div class="chat-footer-meta">EnrichRAG Assistant v1.0</div>
       </div>
     </aside>
-  </transition>
 </template>
 
 <script setup lang="ts">

@@ -43,10 +43,16 @@ export const useAnalysisStore = defineStore('analysis', {
     async validateGenes() {
       this.status = 'validating';
       this.error = '';
-      const response = await api.validateGenes(this.genes);
-      this.validation = await api.parseJson<ValidationResponse>(response);
-      this.status = 'idle';
-      return this.validation;
+      try {
+        const response = await api.validateGenes(this.genes);
+        this.validation = await api.parseJson<ValidationResponse>(response);
+        return this.validation;
+      } catch (e) {
+        this.error = e instanceof Error ? e.message : 'Validation failed';
+        throw e;
+      } finally {
+        if (this.status === 'validating') this.status = 'idle';
+      }
     },
     runAnalysis() {
       if (this.stream) this.stream.close();
