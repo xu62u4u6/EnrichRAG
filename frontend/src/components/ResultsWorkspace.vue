@@ -1,5 +1,20 @@
 <template>
   <div class="view active" id="view-results">
+    <!-- Empty state: no result and not running -->
+    <div v-if="!analysis.result && !analysis.running" class="empty-state-full">
+      <div class="empty-state-icon">
+        <Inbox :size="36" />
+      </div>
+      <h3>No Analysis Loaded</h3>
+      <p>Run a new analysis or select one from your history to view results.</p>
+      <div class="empty-state-cta">
+        <button class="btn btn-primary" @click="ui.currentView = 'input'"><FlaskConical :size="14" /> New Analysis</button>
+        <button class="btn btn-secondary" @click="ui.currentView = 'history'"><History :size="14" /> View History</button>
+      </div>
+    </div>
+
+    <!-- Active state: running or has result -->
+    <template v-else>
     <div class="results-header">
       <div class="status-badge">
         <template v-if="analysis.running"><Loader2 :size="13" class="spin" /> Running...</template>
@@ -8,6 +23,7 @@
       </div>
       <div class="title-row">
         <div>
+          <p class="results-context-label">Disease Context</p>
           <h2>{{ analysis.result?.disease_context || (analysis.running ? analysis.disease : 'No analysis loaded') }}</h2>
           <p class="meta">Targeting <b>{{ analysis.result?.input_genes?.length || (analysis.running ? analysis.genes.trim().split(/[\s,;]+/).length : 0) }}</b> genes</p>
         </div>
@@ -19,12 +35,6 @@
         </div>
       </div>
     </div>
-
-    <div v-if="!analysis.result && !analysis.running" class="empty-state">
-      Run an analysis or load one from history to populate results.
-    </div>
-
-    <template v-else>
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-icon teal"><Dna :size="14" /></div>
@@ -48,33 +58,35 @@
         </div>
       </div>
 
-      <div class="tabs">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="tab-btn"
-          :class="{ active: activeTab === tab.id }"
-          :disabled="analysis.running && !analysis.result && tab.id !== 'pipeline'"
-          @click="activeTab = tab.id"
-        >
-          <component :is="tab.icon" :size="15" />
-          {{ tab.label }}
-          <span v-if="tab.count != null" class="tab-count">{{ tab.count }}</span>
-        </button>
+      <div class="tabs-wrapper">
+        <div class="tabs">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="tab-btn"
+            :class="{ active: activeTab === tab.id }"
+            :disabled="analysis.running && !analysis.result && tab.id !== 'pipeline'"
+            @click="activeTab = tab.id"
+          >
+            <component :is="tab.icon" :size="15" />
+            {{ tab.label }}
+            <span v-if="tab.count != null" class="tab-count">{{ tab.count }}</span>
+          </button>
+        </div>
       </div>
 
-      <PipelineViz v-if="activeTab === 'pipeline'" />
-      <GenesTab v-else-if="activeTab === 'genes'" />
-      <EnrichmentTab v-else-if="activeTab === 'enrichment'" />
-      <SourcesTab v-else-if="activeTab === 'sources'" />
-      <NetworkTab v-else-if="activeTab === 'network'" />
-      <ReportTab v-else-if="activeTab === 'report'" />
+      <PipelineViz v-show="activeTab === 'pipeline'" />
+      <GenesTab v-if="activeTab === 'genes'" />
+      <EnrichmentTab v-if="activeTab === 'enrichment'" />
+      <SourcesTab v-if="activeTab === 'sources'" />
+      <NetworkTab v-if="activeTab === 'network'" />
+      <ReportTab v-if="activeTab === 'report'" />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import {
   CheckCircle2,
   Square,
@@ -93,6 +105,9 @@ import {
   FileText,
   Loader2,
   AlertCircle,
+  Inbox,
+  FlaskConical,
+  History,
 } from 'lucide-vue-next';
 import { useAnalysisStore } from '../stores/analysis';
 import { useChatStore } from '../stores/chat';
@@ -109,6 +124,24 @@ const chat = useChatStore();
 const ui = useUiStore();
 
 const activeTab = ref<string>('pipeline');
+
+// Tab overflow detection for fade mask
+const tabsWrapper = ref<HTMLElement | null>(null);
+function checkTabOverflow() {
+  const wrapper = document.querySelector('.tabs-wrapper');
+  const tabs = wrapper?.querySelector('.tabs');
+  if (wrapper && tabs) {
+    const hasOverflow = tabs.scrollWidth > tabs.clientWidth;
+    wrapper.classList.toggle('has-overflow', hasOverflow);
+  }
+}
+onMounted(() => {
+  nextTick(checkTabOverflow);
+  window.addEventListener('resize', checkTabOverflow);
+});
+onUnmounted(() => {
+  window.removeEventListener('resize', checkTabOverflow);
+});
 
 watch(
   () => analysis.running,

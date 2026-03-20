@@ -2,6 +2,30 @@
 .table-wrap,
 .table-shell {
   overflow-x: auto;
+  position: relative;
+}
+
+/* Right-side shadow hint when table is scrollable */
+.table-wrap.has-scroll-right::after,
+.table-shell.has-scroll-right::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 2rem;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.9));
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Sticky first column for readability on narrow screens */
+.table-wrap table th:first-child,
+.table-wrap table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.96);
 }
 
 table {

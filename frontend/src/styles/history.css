@@ -47,9 +47,9 @@
 }
 
 .history-clear-btn:hover {
-  color: var(--gray-900);
-  border-color: rgba(152, 162, 179, 0.9);
-  background: rgba(249, 250, 251, 0.82);
+  color: var(--color-danger);
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(254, 242, 242, 0.8);
 }
 
 .history-search-input {
@@ -159,6 +159,23 @@
 
 .history-delete-btn:hover {
   color: var(--color-danger);
+}
+
+.history-delete-btn--confirm {
+  width: auto;
+  min-width: 42px;
+  padding: 0 0.6rem;
+  color: var(--color-danger);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  gap: 0.3rem;
+  background: rgba(254, 242, 242, 0.9);
+  border-left: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.history-delete-btn--confirm:hover {
+  background: rgba(254, 226, 226, 0.95);
 }
 
 .hist-info {

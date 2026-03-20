@@ -64,6 +64,48 @@ p {
   font-size: 0.84rem;
 }
 
+/* ---- Full empty state (centered with CTA) ---- */
+.empty-state-full {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 6rem 2rem;
+  min-height: 50vh;
+}
+
+.empty-state-full .empty-state-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: var(--gray-100);
+  color: var(--gray-400);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.empty-state-full h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 0.4rem;
+}
+
+.empty-state-full p {
+  font-size: 0.84rem;
+  color: var(--gray-400);
+  max-width: 28rem;
+  margin-bottom: 1.5rem;
+}
+
+.empty-state-full .empty-state-cta {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .pipeline-progress {
   padding: 1.5rem 0;
 }

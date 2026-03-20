@@ -330,16 +330,7 @@
     position: relative;
   }
 
-  .tabs::after {
-    content: '';
-    position: sticky;
-    right: 0;
-    flex-shrink: 0;
-    width: 2rem;
-    margin-left: -2rem;
-    background: linear-gradient(to right, transparent, var(--color-bg-canvas, var(--gray-50)));
-    pointer-events: none;
-  }
+  /* Tab fade mask handled by .tabs-wrapper::after in tabs.css */
 
   textarea {
     min-height: 4rem;

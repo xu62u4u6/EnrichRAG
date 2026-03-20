@@ -34,8 +34,18 @@
               <span class="hist-arrow"><ChevronRight :size="15" /></span>
             </div>
           </button>
-          <button class="history-delete-btn" @click="remove(item.id)" aria-label="Delete history item">
-            <Trash2 :size="14" />
+          <button
+            class="history-delete-btn"
+            :class="{ 'history-delete-btn--confirm': pendingDelete === item.id }"
+            @click="pendingDelete === item.id ? confirmDelete(item.id) : requestDelete(item.id)"
+            :aria-label="pendingDelete === item.id ? 'Confirm delete' : 'Delete history item'"
+          >
+            <template v-if="pendingDelete === item.id">
+              <AlertTriangle :size="12" /> Delete?
+            </template>
+            <template v-else>
+              <Trash2 :size="14" />
+            </template>
           </button>
         </li>
       </ul>
@@ -47,8 +57,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { Search, Trash2, ChevronRight } from 'lucide-vue-next';
+import { onMounted, ref } from 'vue';
+import { Search, Trash2, ChevronRight, AlertTriangle } from 'lucide-vue-next';
 import { useAnalysisStore } from '../stores/analysis';
 import { useHistoryStore } from '../stores/history';
 import { useUiStore } from '../stores/ui';
@@ -77,12 +87,21 @@ async function load(id: number) {
   ui.showToast('History item loaded');
 }
 
-async function remove(id: number) {
+const pendingDelete = ref<number | null>(null);
+
+function requestDelete(id: number) {
+  pendingDelete.value = id;
+  setTimeout(() => { if (pendingDelete.value === id) pendingDelete.value = null; }, 3000);
+}
+
+async function confirmDelete(id: number) {
   await history.deleteItem(id);
+  pendingDelete.value = null;
   ui.showToast('History item deleted');
 }
 
 async function clearAll() {
+  if (!window.confirm('Clear all analysis history? This action cannot be undone.')) return;
   await history.clearAll();
   ui.showToast('History cleared');
 }

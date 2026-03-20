@@ -1,12 +1,38 @@
 /* ---- Tabs ---- */
+.tabs-wrapper {
+  position: relative;
+  margin-bottom: 1.25rem;
+}
+
+.tabs-wrapper::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 2.5rem;
+  background: linear-gradient(to right, transparent, var(--color-bg-canvas, var(--gray-50)));
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.tabs-wrapper.has-overflow::after {
+  opacity: 1;
+}
+
 .tabs {
   display: flex;
   gap: 1rem;
   border-bottom: 1px solid var(--gray-200);
-  margin-bottom: 1.25rem;
   padding: 0 0 0.1rem;
   overflow-x: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-btn {

@@ -57,12 +57,18 @@ export const useAnalysisStore = defineStore('analysis', {
       const params = new URLSearchParams({
         genes: this.genes,
         disease: this.disease,
-        pval: String(this.pval),
+        pval: parseFloat(this.pval.toFixed(4)).toString(),
       });
       const stream = api.analyzeStream(params.toString());
       this.stream = stream;
       stream.onmessage = async (message) => {
-        const payload = JSON.parse(message.data) as ProgressEvent;
+        let payload: ProgressEvent;
+        try {
+          payload = JSON.parse(message.data) as ProgressEvent;
+        } catch {
+          console.warn('[enrichRAG] malformed SSE data:', message.data);
+          return;
+        }
         if (payload.event !== 'graph_update' && payload.event !== 'result') {
           console.debug('[enrichRAG pipeline]', payload.event, payload.message || '', payload.data);
         }

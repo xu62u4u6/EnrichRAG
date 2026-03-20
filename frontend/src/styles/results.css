@@ -32,6 +32,15 @@
   flex-wrap: wrap;
 }
 
+.results-context-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--gray-400);
+  margin-bottom: 0.15rem;
+}
+
 .results-header h2 {
   font-family: var(--font-display);
   font-size: 1.62rem;
