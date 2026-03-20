@@ -18,53 +18,31 @@
       </button>
     </div>
     <div v-for="key in enrichmentKeys" :key="key" class="sub-panel" :class="{ active: activeEnrichSub === key }">
-      <div class="table-card">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Term</th>
-                <th>Overlap</th>
-                <th>P-value</th>
-                <th>Adj. P-value</th>
-                <th>Genes</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(row, idx) in (analysis.result?.enrichment_results?.[key] || [])"
-                :key="idx"
-                :class="sigClass(row as { p_adjusted?: number; p_value?: number })"
-              >
-                <td class="cell-term">{{ (row as Record<string, unknown>).term }}</td>
-                <td class="cell-overlap">{{ (row as Record<string, unknown>).overlap }}</td>
-                <td class="cell-pval">{{ formatPval((row as Record<string, unknown>).p_value) }}</td>
-                <td class="cell-pval">{{ formatPval((row as Record<string, unknown>).p_adjusted) }}</td>
-                <td class="cell-genes">
-                  <template v-if="typeof (row as Record<string, unknown>).genes === 'string'">
-                    <span
-                      v-for="gene in ((row as Record<string, unknown>).genes as string).split(/[;,]\s*/)"
-                      :key="gene"
-                      class="gene-pill"
-                    >
-                      {{ gene.trim() }}
-                    </span>
-                  </template>
-                  <template v-else>{{ (row as Record<string, unknown>).genes }}</template>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        :data="(analysis.result?.enrichment_results?.[key] || []) as EnrichRow[]"
+        :columns="enrichColumns"
+        :row-class="(row: EnrichRow) => sigClass(row)"
+        searchable
+        search-placeholder="Search terms or genes..."
+      />
     </div>
   </template>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, h } from 'vue';
+import type { ColumnDef } from '@tanstack/vue-table';
 import { useAnalysisStore } from '../../stores/analysis';
 import { formatPval, sigClass } from '../../utils/format';
+import DataTable from '../DataTable.vue';
+
+interface EnrichRow {
+  term?: string;
+  overlap?: string;
+  p_value?: number;
+  p_adjusted?: number;
+  genes?: string;
+}
 
 const analysis = useAnalysisStore();
 const activeEnrichSub = ref('');
@@ -92,4 +70,45 @@ const enrichSubLabels: Record<string, string> = {
 function enrichSubLabel(key: string) {
   return enrichSubLabels[key] || key;
 }
+
+const enrichColumns: ColumnDef<EnrichRow, any>[] = [
+  {
+    accessorKey: 'term',
+    header: 'Term',
+    meta: { tdClass: 'cell-term' },
+  },
+  {
+    accessorKey: 'overlap',
+    header: 'Overlap',
+    meta: { tdClass: 'cell-overlap' },
+  },
+  {
+    accessorKey: 'p_value',
+    header: 'P-value',
+    cell: (info) => formatPval(info.getValue()),
+    meta: { tdClass: 'cell-pval' },
+    sortingFn: 'basic',
+  },
+  {
+    accessorKey: 'p_adjusted',
+    header: 'Adj. P-value',
+    cell: (info) => formatPval(info.getValue()),
+    meta: { tdClass: 'cell-pval' },
+    sortingFn: 'basic',
+  },
+  {
+    accessorKey: 'genes',
+    header: 'Genes',
+    meta: { tdClass: 'cell-genes' },
+    enableSorting: false,
+    cell: (info) => {
+      const val = info.getValue() as string | undefined;
+      if (typeof val !== 'string') return val ?? '';
+      const genes = val.split(/[;,]\s*/);
+      return h('span', {}, genes.map((gene) =>
+        h('span', { class: 'gene-pill', key: gene }, gene.trim()),
+      ));
+    },
+  },
+];
 </script>

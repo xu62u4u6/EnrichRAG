@@ -6,44 +6,18 @@
         <p>Resolved symbols used by the analysis pipeline.</p>
       </div>
       <div class="validation-badges">
-        <span class="validation-badge accepted">Accepted {{ summary.accepted }}</span>
-        <span class="validation-badge remapped">Remapped {{ summary.remapped }}</span>
-        <span class="validation-badge rejected">Rejected {{ summary.rejected }}</span>
+        <span class="validation-badge accepted">Accepted {{ summaryData.accepted }}</span>
+        <span class="validation-badge remapped">Remapped {{ summaryData.remapped }}</span>
+        <span class="validation-badge rejected">Rejected {{ summaryData.rejected }}</span>
       </div>
     </div>
-    <div class="table-card table-card-flat">
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Input Gene</th>
-              <th>Normalized Gene</th>
-              <th>Status</th>
-              <th>Source</th>
-              <th>Gene ID</th>
-              <th>Official Name</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in rows" :key="`${row.input_gene}-${row.status}`">
-              <td class="cell-term">{{ row.input_gene }}</td>
-              <td>
-                <button
-                  v-if="row.normalized_gene"
-                  class="gene-pill gene-pill-btn"
-                  @click="geneDrawer.openGene(row.normalized_gene)"
-                >{{ row.normalized_gene }}</button>
-                <span v-else class="gene-pill gene-pill-muted">{{ row.normalized_symbol || '—' }}</span>
-              </td>
-              <td><span class="status-pill" :class="row.status">{{ row.status }}</span></td>
-              <td>{{ row.source || '—' }}</td>
-              <td class="cell-overlap">{{ row.gene_id || '—' }}</td>
-              <td>{{ row.official_name || row.description || '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable
+      :data="rows"
+      :columns="validationColumns"
+      card-class="table-card-flat"
+      searchable
+      search-placeholder="Search genes..."
+    />
     <div v-if="(normalizedCount ?? 0) > 0" class="validation-note">
       Analysis ran with {{ normalizedCount }} normalized genes.
     </div>
@@ -51,9 +25,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, h } from 'vue';
+import type { ColumnDef } from '@tanstack/vue-table';
 import type { ValidationRow } from '../types';
 import { useGeneDrawerStore } from '../stores/geneDrawer';
+import DataTable from './DataTable.vue';
 
 const props = defineProps<{
   rows: ValidationRow[];
@@ -63,7 +39,7 @@ const props = defineProps<{
 
 const geneDrawer = useGeneDrawerStore();
 
-const summary = computed(() => {
+const summaryData = computed(() => {
   if (props.summary) return props.summary;
   return {
     accepted: props.rows.filter((r) => r.status === 'accepted').length,
@@ -71,4 +47,48 @@ const summary = computed(() => {
     rejected: props.rows.filter((r) => r.status === 'rejected').length,
   };
 });
+
+const validationColumns: ColumnDef<ValidationRow, any>[] = [
+  {
+    accessorKey: 'input_gene',
+    header: 'Input Gene',
+    meta: { tdClass: 'cell-term' },
+  },
+  {
+    accessorKey: 'normalized_gene',
+    header: 'Normalized Gene',
+    cell: (info) => {
+      const row = info.row.original;
+      if (row.normalized_gene) {
+        return h('button', {
+          class: 'gene-pill gene-pill-btn',
+          onClick: () => geneDrawer.openGene(row.normalized_gene!),
+        }, row.normalized_gene);
+      }
+      return h('span', { class: 'gene-pill gene-pill-muted' }, row.normalized_symbol || '—');
+    },
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: (info) => {
+      const status = info.getValue() as string;
+      return h('span', { class: `status-pill ${status}` }, status);
+    },
+  },
+  {
+    accessorFn: (row) => row.source || '—',
+    header: 'Source',
+  },
+  {
+    accessorFn: (row) => row.gene_id || '—',
+    header: 'Gene ID',
+    meta: { tdClass: 'cell-overlap' },
+  },
+  {
+    accessorFn: (row) => row.official_name || row.description || '—',
+    header: 'Official Name',
+  },
+];
 </script>

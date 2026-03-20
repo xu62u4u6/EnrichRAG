@@ -7,4 +7,11 @@ declare global {
   }
 }
 
+declare module '@tanstack/vue-table' {
+  interface ColumnMeta<TData, TValue> {
+    thClass?: string;
+    tdClass?: string;
+  }
+}
+
 export {};
