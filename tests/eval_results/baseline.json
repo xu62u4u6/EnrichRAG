@@ -1,0 +1,208 @@
+{
+  "timestamp": "2026-03-18T17:11:02.366325",
+  "total_cases": 5,
+  "passed": 2,
+  "failed": 3,
+  "cases": [
+    {
+      "name": "dna_repair",
+      "genes": [
+        "BRCA1",
+        "MLH1",
+        "MSH2",
+        "RAD51",
+        "FANCD2",
+        "ERCC1",
+        "XPA",
+        "LIG4"
+      ],
+      "disease": "cancer",
+      "claims": [
+        {
+          "text": "The report identifies multiple distinct DNA repair sub-pathways covered by this gene set",
+          "hit": true
+        },
+        {
+          "text": "MLH1 and MSH2 are correctly classified as mismatch repair (MMR) pathway components",
+          "hit": true
+        },
+        {
+          "text": "BRCA1, RAD51, and FANCD2 are linked to homologous recombination (HR) or Fanconi anemia (FA) pathway",
+          "hit": true
+        },
+        {
+          "text": "ERCC1 and XPA are identified as nucleotide excision repair (NER) factors",
+          "hit": true
+        },
+        {
+          "text": "LIG4 is associated with non-homologous end joining (NHEJ)",
+          "hit": false
+        },
+        {
+          "text": "The report discusses genomic instability or cancer predisposition as a consequence of defects in these genes",
+          "hit": true
+        }
+      ],
+      "hit_rate": 0.8333333333333334,
+      "min_hit_rate": 0.7,
+      "pass": true,
+      "report_length": 3189,
+      "report": "# Enrichment Analysis Report\n\n## Summary of Enrichment Signals\n- The input gene set is significantly enriched in several key biological processes related to DNA repair, including \"DNA repair\" (GO:0006281), \"response to ionizing radiation\" (GO:0010212), and \"DNA metabolic process\" (GO:0006259). These processes are crucial for maintaining genomic stability and are often implicated in cancer.\n- Notable pathways include the \"Fanconi anemia pathway\" and \"Mismatch repair\" pathway, both of which are critical for DNA damage repair and are associated with cancer predisposition.\n- There is a strong clustering of terms related to DNA repair mechanisms, such as \"double-strand break repair\" and \"nucleotide-excision repair,\" indicating a focus on maintaining DNA integrity.\n\n## Interpretation\n- The enrichment of DNA repair processes and pathways suggests that the input genes play a critical role in maintaining genomic stability, which is often compromised in cancer. The involvement of genes like BRCA1, RAD51, and FANCD2 in these processes highlights their importance in homologous recombination and repair of DNA double-strand breaks, which are crucial for preventing tumorigenesis.\n- The significant enrichment in the \"Fanconi anemia pathway\" (p=9.2e-11) underscores the role of these genes in repairing interstrand cross-links, a type of DNA damage that can lead to chromosomal instability if not properly repaired.\n- Supporting evidence from PubMed abstracts (e.g., PMID:25423595) indicates that defects in DNA damage response pathways are associated with cancer development and can influence tumor responses to radiation and chemotherapy. This suggests that the input genes may be involved in modulating cancer therapy outcomes.\n- The interaction between RAD51 and BRCA1, as well as their regulation by other proteins like BRCA2 and the Shu complex (PMID:39169038), highlights a complex network of interactions that facilitate high-fidelity DNA repair.\n\n## Caveats and Potential Biases\n- There may be a study bias towards well-known genes like BRCA1 and RAD51, which are extensively studied in the context of cancer. This could skew the enrichment results towards processes and pathways involving these genes.\n- Some GO terms, such as \"DNA repair\" and \"DNA metabolic process,\" are broad and may encompass a wide range of activities, potentially diluting the specificity of the enrichment analysis.\n\n## Hypothesis-level Observations\n- **Hypothesis 1**: The interaction between RAD51 and the Shu complex enhances homologous recombination efficiency, which could be targeted to improve cancer treatment outcomes by increasing tumor sensitivity to DNA-damaging agents.\n- **Hypothesis 2**: The involvement of MSH2 and MLH1 in both mismatch repair and pathways related to colorectal cancer suggests a potential regulatory mechanism that could be exploited for early detection or targeted therapy in colorectal cancer patients.\n\n- **Novel Connection**: The interaction between FANCD2 and BRCA2, as well as their role in activating RAD51, suggests a potential regulatory axis that could be further explored to understand their combined impact on DNA repair fidelity and cancer susceptibility.",
+      "pipeline_seconds": 55.8,
+      "eval_seconds": 3.9
+    },
+    {
+      "name": "emt",
+      "genes": [
+        "SNAI1",
+        "TWIST1",
+        "ZEB1",
+        "VIM",
+        "CDH2",
+        "FN1",
+        "TGFB1"
+      ],
+      "disease": "cancer",
+      "claims": [
+        {
+          "text": "TGFB1 is identified as an upstream inducer or cytokine that drives EMT",
+          "hit": true
+        },
+        {
+          "text": "SNAI1, TWIST1, and ZEB1 are classified as EMT transcription factors (EMT-TFs)",
+          "hit": true
+        },
+        {
+          "text": "VIM, CDH2 (N-cadherin), and FN1 (Fibronectin) are described as mesenchymal markers",
+          "hit": false
+        },
+        {
+          "text": "The report links EMT to tumor invasion, migration, or metastasis",
+          "hit": true
+        }
+      ],
+      "hit_rate": 0.75,
+      "min_hit_rate": 0.7,
+      "pass": true,
+      "report_length": 2909,
+      "report": "# Enrichment Analysis Report\n\n## Summary of Enrichment Signals\n- The gene set is significantly enriched for processes related to epithelial-to-mesenchymal transition (EMT), cell differentiation, and cytokine-mediated signaling pathways. Key biological processes include positive regulation of cell differentiation, regulation of EMT, and cellular response to cytokine stimulus.\n- Notable patterns include the repeated involvement of TGFB1, SNAI1, and TWIST1 across multiple enriched terms, highlighting their central roles in EMT and related processes. Additionally, the KEGG pathway analysis highlights the involvement of these genes in cancer-related pathways, such as proteoglycans in cancer.\n\n## Interpretation\n- The enrichment of EMT-related processes is highly relevant in the context of cancer, as EMT is a critical mechanism by which cancer cells gain migratory and invasive properties, facilitating metastasis. The genes SNAI1, TWIST1, and ZEB1 are well-known transcription factors that drive EMT, while TGFB1 is a key cytokine that induces EMT through various signaling pathways.\n- The involvement of these genes in cytokine-mediated signaling pathways suggests a link between inflammation and cancer progression, as cytokines like TGFB1 can modulate the tumor microenvironment and promote tumor growth and metastasis.\n- Supporting evidence from PubMed abstracts indicates that TGFB1 is associated with immune cell infiltration and immune checkpoint expression (PMID:38743077), further linking it to cancer progression and immune evasion. Additionally, TWIST1 is known to regulate EMT and metastasis (PMID:37680145).\n\n## Caveats and Potential Biases\n- There is a potential bias towards well-studied genes like TGFB1 and TWIST1, which are frequently implicated in cancer studies. This could lead to an overrepresentation of these genes in enrichment analyses.\n- Some terms, such as \"positive regulation of gene expression\" or \"regulation of transcription,\" are broad and may not provide specific insights into the underlying biological mechanisms.\n\n## Hypothesis-level Observations\n- **Hypothesis 1:** TGFB1, SNAI1, and TWIST1 collaboratively regulate EMT and metastasis in cancer through a cytokine-mediated signaling network. This hypothesis can be tested by examining the co-expression and interaction of these genes in cancer cell lines and patient samples.\n- **Hypothesis 2:** The involvement of TGFB1 in immune cell infiltration and immune checkpoint expression suggests a dual role in promoting EMT and modulating the immune microenvironment. Investigating the impact of TGFB1 inhibition on both EMT and immune cell dynamics could reveal novel therapeutic strategies.\n\n- **Novel Connection:** The regulation of EMT by TWIST1 and its interaction with the NuRD complex (source: PMC10626429) suggests a potential epigenetic mechanism that could be targeted to modulate EMT and cancer progression.",
+      "pipeline_seconds": 87.0,
+      "eval_seconds": 2.6
+    },
+    {
+      "name": "glycolysis",
+      "genes": [
+        "HK2",
+        "PKM",
+        "LDHA",
+        "PGK1",
+        "SLC2A1"
+      ],
+      "disease": "cancer",
+      "claims": [
+        {
+          "text": "The report mentions the Warburg effect or aerobic glycolysis",
+          "hit": true
+        },
+        {
+          "text": "SLC2A1 (GLUT1) is identified as a glucose transporter",
+          "hit": false
+        },
+        {
+          "text": "HK2 and/or PKM are described as rate-limiting glycolytic enzymes",
+          "hit": false
+        },
+        {
+          "text": "LDHA is linked to lactate production and/or tumor microenvironment acidification",
+          "hit": false
+        }
+      ],
+      "hit_rate": 0.25,
+      "min_hit_rate": 0.7,
+      "pass": false,
+      "report_length": 3366,
+      "report": "# Enrichment Analysis Report\n\n## Summary of Enrichment Signals\n- The input gene set (HK2, PKM, LDHA, PGK1, SLC2A1) shows significant enrichment in several key biological processes and pathways related to glycolysis and carbohydrate metabolism. Notably, the genes are enriched in:\n  - Glycolytic process (GO:0006096)\n  - Carbohydrate catabolic process (GO:0016052)\n  - Pyruvate metabolic process (GO:0006090)\n  - Canonical glycolysis (GO:0061621)\n  - Glucose catabolic process to pyruvate (GO:0061718)\n  - Glycolytic process through glucose-6-phosphate (GO:0061620)\n- The KEGG pathways highlight significant involvement in:\n  - Glycolysis / Gluconeogenesis\n  - Central carbon metabolism in cancer\n  - HIF-1 signaling pathway\n- There is also notable enrichment in processes related to angiogenesis, suggesting a link between glycolytic activity and tumor vascularization.\n\n## Interpretation\n- The enrichment analysis underscores the central role of glycolysis and associated metabolic pathways in cancer, consistent with the Warburg effect, where cancer cells preferentially utilize glycolysis for energy production even in the presence of oxygen. This metabolic reprogramming supports rapid cell proliferation and survival.\n- The involvement of genes like HK2, PKM, and LDHA in glycolytic processes suggests their critical role in cancer metabolism. These genes are often regulated by oncogenic pathways such as PI3K/Akt and HIF-1 signaling, which are known to promote glycolysis and angiogenesis in tumors (PMID:38904014, PMID:41548699).\n- The HIF-1 signaling pathway's enrichment indicates a potential mechanism where hypoxia-inducible factors drive the expression of glycolytic enzymes, facilitating adaptation to hypoxic tumor microenvironments (PMID:38904014).\n- The positive regulation of angiogenesis by glycolytic enzymes like HK2 and PKM suggests a link between metabolic reprogramming and the formation of new blood vessels, which is crucial for tumor growth and metastasis (Source: PMC11942008).\n\n## Caveats and Potential Biases\n- The analysis may be biased towards well-studied genes and pathways, such as those involved in glycolysis and the PI3K/Akt pathway, which are frequently implicated in cancer research.\n- Some terms, like \"carbohydrate catabolic process,\" are broad and may encompass a wide range of metabolic activities, potentially diluting specific insights.\n- The focus on glycolysis might overshadow other metabolic pathways that could also play significant roles in cancer, such as oxidative phosphorylation and lipid metabolism (PMID:39294640).\n\n## Hypothesis-level Observations\n- **Hypothesis 1:** Targeting glycolytic enzymes such as HK2 and PKM in cancer cells could disrupt both energy production and angiogenesis, providing a dual therapeutic strategy to inhibit tumor growth and vascularization.\n- **Hypothesis 2:** The PI3K/Akt pathway's regulation of glycolytic enzymes suggests that inhibitors of this pathway could effectively reduce glycolytic flux and tumor progression, particularly in cancers exhibiting the Warburg effect (PMID:38904014).\n- Novel connections might exist between glycolytic reprogramming and immune evasion in tumors, as metabolic changes could affect the tumor microenvironment and immune cell function (PMID:31781842). Further research could explore these interactions to identify new therapeutic targets.",
+      "pipeline_seconds": 85.7,
+      "eval_seconds": 2.4
+    },
+    {
+      "name": "autophagy",
+      "genes": [
+        "ULK1",
+        "BECN1",
+        "ATG5",
+        "ATG7",
+        "LC3B",
+        "SQSTM1"
+      ],
+      "disease": "cancer",
+      "claims": [
+        {
+          "text": "ULK1 is identified as part of the initiation/kinase complex of autophagy",
+          "hit": false
+        },
+        {
+          "text": "BECN1 (Beclin 1) is linked to the PI3K complex or nucleation step",
+          "hit": false
+        },
+        {
+          "text": "ATG5, ATG7, and LC3B are associated with the ubiquitin-like conjugation system or membrane elongation",
+          "hit": false
+        },
+        {
+          "text": "SQSTM1 (p62) is described as an autophagy receptor or cargo adaptor",
+          "hit": false
+        },
+        {
+          "text": "The report discusses autophagic flux or the possibility that co-expression of LC3B and SQSTM1 may indicate blocked degradation rather than active autophagy",
+          "hit": false
+        }
+      ],
+      "hit_rate": 0.0,
+      "min_hit_rate": 0.7,
+      "pass": false,
+      "report_length": 3184,
+      "report": "# Enrichment Analysis Report\n\n## Summary of Enrichment Signals\n- **Key Biological Processes and Pathways**: The input gene set is significantly enriched in processes related to autophagy, particularly mitophagy, macroautophagy, and autophagosome organization. Key pathways include autophagy and mitophagy, as well as ferroptosis and pathways involved in neurodegeneration.\n- **Notable Patterns or Clusters**: There is a strong clustering around autophagy-related processes, with multiple terms related to the regulation and execution of autophagy, including selective autophagy and autophagosome assembly. The genes BECN1, ULK1, ATG7, SQSTM1, and ATG5 are recurrently involved across these terms, indicating their central role in these processes.\n\n## Interpretation\n- **Biological Significance**: The enrichment of autophagy-related processes suggests that the input genes play a crucial role in cellular degradation pathways, which are vital for maintaining cellular homeostasis and responding to stress. In the context of cancer, autophagy can have dual roles, acting as a tumor suppressor by degrading damaged organelles and proteins, or as a tumor promoter by providing nutrients through recycling.\n- **Potential Mechanisms**: The involvement of genes like BECN1, ULK1, and ATG5 in both autophagy and mitophagy suggests a mechanism where these genes help regulate the turnover of mitochondria, which is critical in cancer cells to manage oxidative stress and energy production. The connection to ferroptosis, a form of regulated cell death, indicates a possible interplay between autophagy and cell death pathways, potentially influencing cancer cell survival.\n- **Supporting Evidence**: The PubMed abstract [PMID:27245739] highlights the role of autophagy in promoting ferroptosis through ferritin degradation, implicating ATG5 and ATG7 in this process. Additionally, [PMID:37055935] discusses the role of copper in inducing autophagy and various forms of cell death, which could be relevant in cancer contexts where copper metabolism is altered.\n\n## Caveats and Potential Biases\n- **Potential Biases**: There may be a bias towards well-studied genes like BECN1 and ULK1, which are frequently implicated in autophagy research. This could skew the enrichment results towards autophagy-related terms.\n- **Broad or Non-specific Terms**: Some terms, such as \"regulation of cell death\" or \"cellular response to nutrient levels,\" are broad and may not provide specific insights into the unique roles of these genes in cancer.\n\n## Hypothesis-level Observations\n- **Testable Hypotheses**: \n  1. The genes BECN1, ULK1, ATG5, and ATG7 are critical regulators of mitophagy in cancer cells, and their modulation could alter cancer cell survival under stress conditions.\n  2. The interplay between autophagy and ferroptosis, mediated by genes like ATG5 and ATG7, could be a potential therapeutic target in cancers with dysregulated iron metabolism.\n- **Novel Connections**: The link between autophagy and ferroptosis suggests a regulatory mechanism where autophagy modulates cell death pathways, potentially offering new avenues for cancer therapy by targeting these interconnected processes.",
+      "pipeline_seconds": 92.3,
+      "eval_seconds": 2.8
+    },
+    {
+      "name": "angiogenesis",
+      "genes": [
+        "VEGFA",
+        "KDR",
+        "FLT1",
+        "ANGPT1",
+        "ANGPT2",
+        "TEK",
+        "CDH5"
+      ],
+      "disease": "cancer",
+      "claims": [
+        {
+          "text": "The report identifies the VEGF-VEGFR signaling axis (VEGFA binding KDR/FLT1) for endothelial proliferation and migration",
+          "hit": true
+        },
+        {
+          "text": "The Angiopoietin-Tie2 axis (ANGPT1/ANGPT2 with TEK) is described for vessel remodeling or stabilization",
+          "hit": false
+        },
+        {
+          "text": "CDH5 (VE-cadherin) is mentioned in the context of endothelial cell adhesion or vascular integrity",
+          "hit": false
+        },
+        {
+          "text": "The report links these genes to tumor angiogenesis or anti-angiogenic therapy (e.g. Bevacizumab)",
+          "hit": true
+        }
+      ],
+      "hit_rate": 0.5,
+      "min_hit_rate": 0.7,
+      "pass": false,
+      "report_length": 3326,
+      "report": "# Enrichment Analysis Report\n\n## Summary of Enrichment Signals\n- The gene set is significantly enriched in biological processes related to vasculature development, angiogenesis, and endothelial cell functions. Key processes include positive regulation of vasculature development, angiogenesis, and endothelial cell migration.\n- Notable pathways include the VEGF signaling pathway, MAPK signaling pathway, PI3K-Akt signaling pathway, and HIF-1 signaling pathway, all of which are crucial for angiogenesis and cancer progression.\n- The enrichment data highlights a strong involvement of the input genes in the regulation of endothelial cell apoptotic processes and chemotaxis, which are critical for tumor angiogenesis and metastasis.\n- Key genes such as VEGFA, KDR, and FLT1 are repeatedly involved across multiple enriched terms, indicating their central role in these processes.\n\n## Interpretation\n- The enrichment results suggest that the input genes are heavily involved in angiogenesis and vascular development, processes that are often hijacked by tumors to support their growth and metastasis. The VEGF signaling pathway, in particular, is a well-known driver of angiogenesis in cancer.\n- The involvement of the MAPK and PI3K-Akt signaling pathways indicates that these genes may contribute to cancer cell survival, proliferation, and migration through these pathways.\n- The PubMed abstract (PMID:38629624) supports the role of VEGFA in cancer, particularly in the context of recurrent malignant pleural effusion, where VEGFA signaling is a major mediator.\n- The KEGG pathways analysis further supports the involvement of these genes in cancer-related pathways, such as the Ras and Rap1 signaling pathways, which are known to be involved in cell proliferation and survival.\n- The presence of genes like ANGPT1 and TEK in the HIF-1 signaling pathway suggests a role in hypoxia-induced angiogenesis, a common feature in the tumor microenvironment.\n\n## Caveats and Potential Biases\n- There may be a bias towards well-studied genes like VEGFA and KDR, which are frequently associated with angiogenesis and cancer, potentially overshadowing less-studied genes.\n- Some GO terms are broad and may not provide specific insights into the unique roles of these genes in cancer, such as \"positive regulation of cellular process.\"\n- The enrichment analysis is based on existing databases, which may not capture the latest research findings or novel gene functions.\n\n## Hypothesis-level Observations\n- **Hypothesis 1:** The VEGFA-KDR-FLT1 axis plays a critical role in promoting angiogenesis and endothelial cell migration in cancer, and targeting this axis could be a potential therapeutic strategy to inhibit tumor growth and metastasis.\n- **Hypothesis 2:** The interaction between the PI3K-Akt and MAPK signaling pathways, mediated by genes like ANGPT1 and TEK, contributes to cancer cell survival and proliferation under hypoxic conditions, suggesting a potential target for disrupting tumor adaptation to hypoxia.\n- **Novel Connection:** The association of CLDN4 with VEGFA signaling in recurrent malignant pleural effusion (PMID:38629624) suggests a potential regulatory mechanism where CLDN4 may modulate VEGFA-driven angiogenesis, warranting further investigation into its role as a biomarker or therapeutic target in cancer.",
+      "pipeline_seconds": 97.9,
+      "eval_seconds": 5.8
+    }
+  ]
+}
