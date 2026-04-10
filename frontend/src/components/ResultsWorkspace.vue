@@ -58,8 +58,8 @@
         </div>
       </div>
 
-      <div class="tabs-wrapper">
-        <div class="tabs">
+      <div ref="tabsWrapper" class="tabs-wrapper">
+        <div ref="tabsEl" class="tabs" @scroll="checkTabOverflow">
           <button
             v-for="tab in tabs"
             :key="tab.id"
@@ -127,14 +127,16 @@ const activeTab = ref<string>('pipeline');
 
 // Tab overflow detection for fade mask
 const tabsWrapper = ref<HTMLElement | null>(null);
+const tabsEl = ref<HTMLElement | null>(null);
+
 function checkTabOverflow() {
-  const wrapper = document.querySelector('.tabs-wrapper');
-  const tabs = wrapper?.querySelector('.tabs');
-  if (wrapper && tabs) {
-    const hasOverflow = tabs.scrollWidth > tabs.clientWidth;
-    wrapper.classList.toggle('has-overflow', hasOverflow);
-  }
+  const wrapper = tabsWrapper.value;
+  const tabs = tabsEl.value;
+  if (!wrapper || !tabs) return;
+  const hasMore = tabs.scrollWidth - tabs.scrollLeft - tabs.clientWidth > 1;
+  wrapper.classList.toggle('has-overflow', hasMore);
 }
+
 onMounted(() => {
   nextTick(checkTabOverflow);
   window.addEventListener('resize', checkTabOverflow);
@@ -142,6 +144,9 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', checkTabOverflow);
 });
+
+// Re-check when result arrives (tabs appear via v-else)
+watch(() => analysis.result, () => nextTick(checkTabOverflow));
 
 watch(
   () => analysis.running,
