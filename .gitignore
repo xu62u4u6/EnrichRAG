@@ -184,3 +184,5 @@ data/cache/
 *.jpeg
 .agent
 tmp-plan.md
+dist-snapshot-*
+.codex
