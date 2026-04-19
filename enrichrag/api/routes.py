@@ -71,7 +71,7 @@ def _sse_payload(payload: dict) -> str:
 
 def _parse_genes(raw: str) -> list[str]:
     """Split gene string by commas, spaces, or newlines."""
-    return [g.strip().upper() for g in re.split(r"[,\s\n]+", raw) if g.strip()]
+    return [g.strip() for g in re.split(r"[,\s\n]+", raw) if g.strip()]
 
 
 @router.get("/api/health")

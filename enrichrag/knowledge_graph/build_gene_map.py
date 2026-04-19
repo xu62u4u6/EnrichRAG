@@ -37,15 +37,21 @@ def build_gene_map(
         for row in reader:
             if row.get("#tax_id") and int(row["#tax_id"]) != 9606:
                 continue
-            symbol = row["Symbol"]
+            ncbi_symbol = row["Symbol"]
             gene_id = row["GeneID"]
+            # Prefer HGNC nomenclature authority symbol as canonical when available
+            nom_symbol = row.get("Symbol_from_nomenclature_authority", "-")
+            symbol = nom_symbol if nom_symbol and nom_symbol != "-" else ncbi_symbol
             canonical_symbols.add(symbol)
 
-            # GeneID -> Symbol
+            # GeneID -> canonical
             gene_map[gene_id] = (symbol, "ncbi_geneid")
-            # Symbol -> Symbol (identity)
-            gene_map[symbol] = (symbol, "ncbi_symbol")
-            # Synonyms -> Symbol
+            # Canonical -> canonical (identity)
+            gene_map[symbol] = (symbol, "hgnc_symbol" if symbol != ncbi_symbol else "ncbi_symbol")
+            # NCBI Symbol -> canonical (as synonym if different from HGNC)
+            if ncbi_symbol != symbol and ncbi_symbol not in gene_map:
+                gene_map[ncbi_symbol] = (symbol, "ncbi_symbol")
+            # Synonyms -> canonical
             synonyms = row.get("Synonyms", "-")
             if synonyms and synonyms != "-":
                 for syn in synonyms.split("|"):

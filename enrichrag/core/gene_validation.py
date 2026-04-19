@@ -122,15 +122,33 @@ class GeneValidationService:
         ordered_variants = list(dict.fromkeys(variants))
         placeholders = ",".join("?" for _ in ordered_variants)
         with self.db.connect() as conn:
+            # Exact match first
             found = conn.execute(
                 f"SELECT input_id, canonical_symbol, source FROM gene_id_map WHERE input_id IN ({placeholders})",
                 ordered_variants,
             ).fetchall()
 
-        by_input = {row["input_id"]: dict(row) for row in found}
+            by_input = {row["input_id"]: dict(row) for row in found}
+
+            # Case-insensitive fallback for unresolved genes (e.g. C9orf64 vs C9ORF64)
+            unresolved = [g for g in genes if g not in by_input and g.upper() not in by_input]
+            if unresolved:
+                ci_rows = conn.execute(
+                    f"SELECT input_id, canonical_symbol, source FROM gene_id_map WHERE input_id COLLATE NOCASE IN ({','.join('?' for _ in unresolved)})",
+                    unresolved,
+                ).fetchall()
+                for row in ci_rows:
+                    by_input[row["input_id"]] = dict(row)
+
         resolved = {}
         for gene in genes:
             resolved[gene] = by_input.get(gene) or by_input.get(gene.upper())
+            if not resolved[gene]:
+                # Try case-insensitive match from fallback results
+                for key, val in by_input.items():
+                    if key.upper() == gene.upper():
+                        resolved[gene] = val
+                        break
         return resolved
 
     def _ensure_profiles(self, canonical_genes: list[str]) -> dict[str, dict]:
