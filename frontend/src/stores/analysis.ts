@@ -60,6 +60,7 @@ export const useAnalysisStore = defineStore('analysis', {
       this.status = 'running';
       this.error = '';
       this.progress = [];
+      this.result = null;
       const params = new URLSearchParams({
         genes: this.genes,
         disease: this.disease,
