@@ -88,6 +88,14 @@
   align-items: stretch;
 }
 
+.history-item-actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 42px;
+  align-items: stretch;
+  border-left: 1px solid rgba(242, 244, 247, 0.95);
+}
+
 .history-search-shell {
   display: flex;
   align-items: center;
@@ -139,6 +147,7 @@
   border-top: 1px solid var(--gray-100);
 }
 
+.history-action-btn,
 .history-delete-btn {
   width: 42px;
   border: none;
@@ -149,12 +158,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s;
+  transition: color 0.15s, background 0.15s;
 }
 
+.history-action-btn svg,
 .history-delete-btn svg {
   width: 14px;
   height: 14px;
+}
+
+.history-action-btn:hover {
+  color: var(--gray-700);
+  background: rgba(249, 250, 251, 0.82);
 }
 
 .history-delete-btn:hover {
@@ -264,4 +279,3 @@
   color: var(--gray-400);
   font-size: 0.84rem;
 }
-

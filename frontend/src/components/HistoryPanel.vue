@@ -34,19 +34,34 @@
               <span class="hist-arrow"><ChevronRight :size="15" /></span>
             </div>
           </button>
-          <button
-            class="history-delete-btn"
-            :class="{ 'history-delete-btn--confirm': pendingDelete === item.id }"
-            @click="pendingDelete === item.id ? confirmDelete(item.id) : requestDelete(item.id)"
-            :aria-label="pendingDelete === item.id ? 'Confirm delete' : 'Delete history item'"
-          >
-            <template v-if="pendingDelete === item.id">
-              <AlertTriangle :size="12" /> Delete?
-            </template>
-            <template v-else>
-              <Trash2 :size="14" />
-            </template>
-          </button>
+          <div class="history-item-actions">
+            <button
+              class="history-action-btn"
+              :disabled="exportingId === item.id"
+              :aria-label="'Export history item as HTML'"
+              @click="exportItem(item.id)"
+            >
+              <template v-if="exportingId === item.id">
+                <Loader2 :size="12" class="spin" />
+              </template>
+              <template v-else>
+                <Download :size="14" />
+              </template>
+            </button>
+            <button
+              class="history-action-btn history-delete-btn"
+              :class="{ 'history-delete-btn--confirm': pendingDelete === item.id }"
+              @click="pendingDelete === item.id ? confirmDelete(item.id) : requestDelete(item.id)"
+              :aria-label="pendingDelete === item.id ? 'Confirm delete' : 'Delete history item'"
+            >
+              <template v-if="pendingDelete === item.id">
+                <AlertTriangle :size="12" /> Delete?
+              </template>
+              <template v-else>
+                <Trash2 :size="14" />
+              </template>
+            </button>
+          </div>
         </li>
       </ul>
       <div v-else class="history-empty-row">
@@ -58,10 +73,11 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { Search, Trash2, ChevronRight, AlertTriangle } from 'lucide-vue-next';
+import { Search, Trash2, ChevronRight, AlertTriangle, Download, Loader2 } from 'lucide-vue-next';
 import { useAnalysisStore } from '../stores/analysis';
 import { useHistoryStore } from '../stores/history';
 import { useUiStore } from '../stores/ui';
+import { downloadResultHtml } from '../utils/exportHtml';
 
 const analysis = useAnalysisStore();
 const history = useHistoryStore();
@@ -88,6 +104,7 @@ async function load(id: number) {
 }
 
 const pendingDelete = ref<number | null>(null);
+const exportingId = ref<number | null>(null);
 
 function requestDelete(id: number) {
   pendingDelete.value = id;
@@ -98,6 +115,17 @@ async function confirmDelete(id: number) {
   await history.deleteItem(id);
   pendingDelete.value = null;
   ui.showToast('History item deleted');
+}
+
+async function exportItem(id: number) {
+  exportingId.value = id;
+  try {
+    const result = await history.load(id);
+    const filename = downloadResultHtml(result);
+    ui.showToast(`${filename} downloaded`);
+  } finally {
+    exportingId.value = null;
+  }
 }
 
 async function clearAll() {

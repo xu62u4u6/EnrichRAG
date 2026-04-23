@@ -31,6 +31,7 @@
           <button v-if="analysis.running" class="btn btn-danger" @click="analysis.cancelRun()"><Square :size="14" /> Stop</button>
           <button class="btn btn-secondary" :disabled="!analysis.result" @click="chat.open = true"><MessageSquare :size="14" /> Ask Assistant</button>
           <button ref="copyBtn" class="btn btn-secondary" :disabled="!analysis.result" @click="copyReport"><component :is="copyIcon" :size="14" /> {{ copyLabel }}</button>
+          <button ref="htmlBtn" class="btn btn-secondary" :disabled="!analysis.result" @click="downloadHtml"><component :is="htmlIcon" :size="14" /> {{ htmlLabel }}</button>
           <button ref="jsonBtn" class="btn btn-secondary" :disabled="!analysis.result" @click="downloadJson"><component :is="jsonIcon" :size="14" /> {{ jsonLabel }}</button>
         </div>
       </div>
@@ -112,6 +113,7 @@ import {
 import { useAnalysisStore } from '../stores/analysis';
 import { useChatStore } from '../stores/chat';
 import { useUiStore } from '../stores/ui';
+import { downloadResultHtml } from '../utils/exportHtml';
 import EnrichmentTab from './tabs/EnrichmentTab.vue';
 import GenesTab from './tabs/GenesTab.vue';
 import NetworkTab from './tabs/NetworkTab.vue';
@@ -178,6 +180,8 @@ const tabs = computed(() => [
 // Copy / JSON button feedback
 const copyLabel = ref('Copy');
 const copyIcon = ref(Clipboard);
+const htmlLabel = ref('HTML');
+const htmlIcon = ref(Download);
 const jsonLabel = ref('JSON');
 const jsonIcon = ref(Download);
 
@@ -221,5 +225,12 @@ function downloadJson() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   flashButton(jsonLabel, jsonIcon, 'Downloaded', 'JSON', Download);
   ui.showToast('JSON downloaded');
+}
+
+function downloadHtml() {
+  if (!analysis.result) { ui.showToast('No analysis loaded'); return; }
+  const filename = downloadResultHtml(analysis.result);
+  flashButton(htmlLabel, htmlIcon, 'Downloaded', 'HTML', Download);
+  ui.showToast(`${filename} downloaded`);
 }
 </script>

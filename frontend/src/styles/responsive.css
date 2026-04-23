@@ -431,6 +431,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .history-item-actions {
+    grid-auto-columns: 1fr;
+    border-left: none;
+    border-top: 1px solid rgba(242, 244, 247, 0.95);
+  }
+
+  .history-action-btn,
   .history-delete-btn {
     width: 100%;
     min-height: 44px;
