@@ -18,7 +18,7 @@ Enter gene symbols (comma, space, or newline separated), specify the disease con
   <img src="docs/images/pipeline.png" width="720" alt="Pipeline execution" />
 </p>
 
-Each step streams progress via SSE — enrichment, query planning, parallel web/PubMed search, local KG lookup, relation extraction, and LLM synthesis — with animated node states and per-step timers.
+Each step streams progress via SSE-backed JSON messages — enrichment, query planning, parallel web/PubMed search, local KG lookup, relation extraction, graph updates, and LLM synthesis — with animated node states and per-step timers.
 
 ### Network — interactive knowledge graph
 
@@ -58,7 +58,7 @@ npm --prefix frontend install      # Frontend deps (requires Node.js 18+)
 make kg-build
 
 # 4. Run
-make dev                           # → http://localhost:9001
+make dev                           # → http://localhost:9002
 
 # 5. Verify installation
 uv run enrichrag version
@@ -110,7 +110,7 @@ flowchart TD
 | # | Step | Input | Output |
 |---|------|-------|--------|
 | 1 | **Gene Validation** | Raw gene symbols | Normalized symbol list (accepted / remapped / rejected) |
-| 2 | **Enrichment** | Normalized gene list | GO/KEGG/Reactome ORA results (filtered by p-value) |
+| 2 | **Enrichment** | Normalized gene list | GO/KEGG ORA results (filtered by p-value) |
 | 3 | **Query Planning** | Enrichment terms + disease context | Structured search strategy (queries + rationale) |
 | 4 | **Parallel Search** | Search queries | Tavily web results + PubMed abstracts |
 | 5 | **KG Lookup** | Gene list | Known relations from local KG (STRING, KEGG, Reactome, PubTator) |
@@ -185,25 +185,25 @@ enrichrag version
 | GET | `/api/genes/{symbol}` | Gene profile lookup |
 | GET | `/api/history` | List saved analyses |
 | POST | `/api/auth/login` | Session login |
-| POST | `/api/auth/register` | Register (invite code required) |
+| POST | `/api/auth/register` | Register and create session |
+| POST | `/api/auth/logout` | Clear current session |
+| GET | `/api/auth/me` | Fetch current session user |
+| GET | `/api/health` | Health check |
 
-Auth via `HttpOnly` session cookie (`SameSite=Lax`). All endpoints except auth require authentication.
+Auth via `HttpOnly` session cookie (`SameSite=Lax`). Analysis, gene, history, and chat endpoints require authentication; `/api/health` does not.
 
 ### Example: SSE pipeline stream
 
 ```bash
 curl "http://localhost:9001/api/analyze/stream?genes=TP53,KRAS,EGFR&disease=cancer&pval=0.05" \
-  -H "Cookie: session=<your-session-cookie>"
+  -H "Cookie: enrichrag_session=<your-session-cookie>"
 
 # Response: Server-Sent Events
-# event: step
-# data: {"step": "enrichment", "status": "running", "message": "Running ORA..."}
+# data: {"event":"enrichment","message":"Running enrichment analysis for 3 genes..."}
 #
-# event: step
-# data: {"step": "enrichment", "status": "done", "data": {...}}
+# data: {"event":"graph_update","message":"Local knowledge graph ready","data":{"graph": {...}, "phase":"local"}}
 #
-# event: done
-# data: {"report": "...", "graph": {...}}
+# data: {"event":"result","data":{"llm_insight":"...", "graph": {...}}}
 ```
 
 ## Configuration
@@ -219,7 +219,6 @@ LLM_MODEL=gpt-4o              # Pipeline LLM model
 LOG_LEVEL=INFO
 URL_PREFIX=""                  # Route prefix for reverse proxy
 KG_ENABLED=true                # Toggle local KG
-AUTH_INVITE_CODE=enrichrag-invite
 AUTH_SECURE_COOKIES=false      # true for HTTPS production
 ```
 
