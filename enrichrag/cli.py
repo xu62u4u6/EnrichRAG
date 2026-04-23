@@ -37,6 +37,23 @@ def _dump_json(data: Any) -> None:
     typer.echo(json.dumps(data, ensure_ascii=False, indent=2))
 
 
+def _collect_genes(cli_genes: list[str] | None, file: Path | None) -> list[str]:
+    """Merge genes from CLI arguments and/or a file (one symbol per line)."""
+    result: list[str] = []
+    if cli_genes:
+        result.extend(cli_genes)
+    if file:
+        text = file.read_text(encoding="utf-8")
+        for line in text.splitlines():
+            token = line.strip()
+            if token and not token.startswith("#"):
+                result.extend(token.split())
+    if not result:
+        typer.secho("No genes provided. Pass symbols as arguments or use --file.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    return result
+
+
 def _render_validation_summary(result: dict[str, Any]) -> None:
     summary = result.get("summary", {})
     typer.echo(
@@ -177,14 +194,20 @@ def version() -> None:
 
 @app.command()
 def analyze(
-    genes: List[str] = typer.Argument(..., help="Gene symbols to analyze"),
+    genes: List[str] = typer.Argument(None, help="Gene symbols to analyze"),
+    file: Path = typer.Option(None, "--file", "-f", help="Read gene symbols from a file (one per line)"),
     disease: str = typer.Option("cancer", "--disease", "-d", help="Disease context"),
     output: Path = typer.Option(None, "--output", "-o", help="Output JSON path"),
     pval: float = typer.Option(0.05, "--pval", "-p", help="P-value threshold"),
     validate_first: bool = typer.Option(
         False,
         "--validate-first",
-        help="Validate and normalize genes before running the pipeline. Abort if any genes are rejected.",
+        help="Validate and normalize genes before running the pipeline. Warns on rejected genes but continues with accepted/remapped ones. Use --strict to abort on any rejection.",
+    ),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="With --validate-first, abort if any genes are rejected (default: warn and continue).",
     ),
     json_output: bool = typer.Option(
         False,
@@ -203,23 +226,30 @@ def analyze(
         output_dir.mkdir(exist_ok=True)
         output = output_dir / "result.json"
 
-    run_genes = genes
+    gene_list = _collect_genes(genes, file)
+    run_genes = gene_list
     if validate_first:
         service = GeneValidationService()
-        validation = service.validate(genes)
+        validation = service.validate(gene_list)
         if json_output:
             _dump_json(validation)
         else:
             _render_validation_summary(validation)
 
         rejected = validation.get("rejected", [])
-        if rejected:
-            typer.secho("Validation failed: rejected genes found. Fix input before analysis.", fg=typer.colors.RED)
-            raise typer.Exit(2)
-
+        rejected_names = [r.get("input_gene", "") for r in rejected] if rejected else []
         normalized = validation.get("normalized_genes", [])
+
+        if rejected and strict:
+            typer.secho("Validation failed: rejected genes found (--strict mode).", fg=typer.colors.RED)
+            raise typer.Exit(2)
+        if rejected:
+            typer.secho(
+                f"Warning: {len(rejected)} rejected gene(s) skipped: {', '.join(rejected_names)}",
+                fg=typer.colors.YELLOW,
+            )
         if not normalized:
-            typer.secho("Validation produced no normalized genes.", fg=typer.colors.RED)
+            typer.secho("Validation produced no usable genes — all rejected.", fg=typer.colors.RED)
             raise typer.Exit(2)
         run_genes = normalized
 
@@ -238,14 +268,16 @@ def analyze(
 
 @genes_app.command("validate")
 def genes_validate(
-    genes: List[str] = typer.Argument(..., help="Gene symbols to validate"),
+    genes: List[str] = typer.Argument(None, help="Gene symbols to validate"),
+    file: Path = typer.Option(None, "--file", "-f", help="Read gene symbols from a file (one per line)"),
     json_output: bool = typer.Option(False, "--json", help="Print raw validation JSON"),
 ) -> None:
     """Validate genes against local mappings and report remaps/rejections."""
     from enrichrag.core.gene_validation import GeneValidationService
 
+    gene_list = _collect_genes(genes, file)
     service = GeneValidationService()
-    result = service.validate(genes)
+    result = service.validate(gene_list)
     if json_output:
         _dump_json(result)
         return
@@ -273,17 +305,292 @@ def gene_profile(
     _print_profile(profile)
 
 
+def _load_result(result_path: Path) -> dict[str, Any]:
+    """Load and return a pipeline result JSON file."""
+    return json.loads(result_path.read_text(encoding="utf-8"))
+
+
 @result_app.command("summary")
 def result_summary(
     result_path: Path = typer.Argument(..., exists=True, readable=True, help="Path to pipeline result JSON"),
     json_output: bool = typer.Option(False, "--json", help="Print raw result JSON"),
 ) -> None:
     """Summarize a saved pipeline result JSON."""
-    data = json.loads(result_path.read_text(encoding="utf-8"))
+    data = _load_result(result_path)
     if json_output:
         _dump_json(data)
         return
     _print_result_summary(data)
+
+
+@result_app.command("papers")
+def result_papers(
+    result_path: Path = typer.Argument(..., exists=True, readable=True, help="Path to pipeline result JSON"),
+    limit: int = typer.Option(0, "--limit", "-n", help="Max papers to show (0 = all)"),
+    json_output: bool = typer.Option(False, "--json", help="Print raw sources JSON"),
+) -> None:
+    """List all PubMed and web sources from a result."""
+    data = _load_result(result_path)
+    sources = data.get("sources", {})
+
+    if json_output:
+        _dump_json(sources)
+        return
+
+    pubmed = sources.get("pubmed", [])
+    web = sources.get("web", [])
+
+    if pubmed:
+        rows = pubmed[:limit] if limit else pubmed
+        table = Table(title=f"PubMed Sources ({len(pubmed)} total)")
+        table.add_column("#", justify="right")
+        table.add_column("PMID", justify="right")
+        table.add_column("Title")
+        table.add_column("Journal")
+        table.add_column("Date")
+        for i, row in enumerate(rows, 1):
+            table.add_row(
+                str(i),
+                str(row.get("pmid", "")),
+                str(row.get("title", "")),
+                str(row.get("journal", "")),
+                str(row.get("pub_date", "")),
+            )
+        console.print(table)
+    else:
+        typer.echo("No PubMed sources.")
+
+    if web:
+        rows = web[:limit] if limit else web
+        table = Table(title=f"Web Sources ({len(web)} total)")
+        table.add_column("#", justify="right")
+        table.add_column("Title")
+        table.add_column("URL")
+        for i, row in enumerate(rows, 1):
+            table.add_row(str(i), str(row.get("title", "")), str(row.get("url", "")))
+        console.print(table)
+    else:
+        typer.echo("No web sources.")
+
+
+@result_app.command("graph-stats")
+def result_graph_stats(
+    result_path: Path = typer.Argument(..., exists=True, readable=True, help="Path to pipeline result JSON"),
+    top: int = typer.Option(10, "--top", "-n", help="Number of top hub genes to show"),
+    json_output: bool = typer.Option(False, "--json", help="Print raw stats JSON"),
+) -> None:
+    """Show graph statistics: node types, hub genes, relation type distribution."""
+    data = _load_result(result_path)
+    graph = data.get("graph", {})
+    relations = data.get("gene_relations", [])
+    nodes = graph.get("nodes", [])
+    edges = graph.get("edges", [])
+
+    # Node type distribution
+    node_types = Counter(n.get("type", "unknown") for n in nodes)
+    # Edge type distribution
+    edge_types = Counter(e.get("type", "unknown") for e in edges)
+    # Relation type distribution (from gene_relations)
+    relation_types = Counter(r.get("relation", "unknown") for r in relations)
+    # Relation group distribution
+    relation_groups = Counter(r.get("relation_group", "unknown") for r in relations)
+    # Hub genes: count edges per node
+    degree: dict[str, int] = {}
+    for e in edges:
+        for endpoint in (e.get("source", ""), e.get("target", "")):
+            degree[endpoint] = degree.get(endpoint, 0) + 1
+    hub_genes = sorted(degree.items(), key=lambda x: -x[1])[:top]
+
+    if json_output:
+        _dump_json({
+            "node_types": dict(node_types),
+            "edge_types": dict(edge_types),
+            "relation_types": dict(relation_types),
+            "relation_groups": dict(relation_groups),
+            "hub_genes": [{"node": n, "degree": d} for n, d in hub_genes],
+            "total_nodes": len(nodes),
+            "total_edges": len(edges),
+            "total_relations": len(relations),
+        })
+        return
+
+    table = Table(title=f"Graph Overview ({len(nodes)} nodes, {len(edges)} edges)")
+    table.add_column("Node Type")
+    table.add_column("Count", justify="right")
+    for kind, count in sorted(node_types.items(), key=lambda x: -x[1]):
+        table.add_row(kind, str(count))
+    console.print(table)
+
+    if edge_types:
+        table = Table(title="Edge Types")
+        table.add_column("Type")
+        table.add_column("Count", justify="right")
+        for kind, count in sorted(edge_types.items(), key=lambda x: -x[1]):
+            table.add_row(kind, str(count))
+        console.print(table)
+
+    if relation_types:
+        table = Table(title=f"Relation Types ({len(relations)} total)")
+        table.add_column("Relation")
+        table.add_column("Group")
+        table.add_column("Count", justify="right")
+        group_lookup: dict[str, str] = {}
+        for r in relations:
+            grp = r.get("relation_group")
+            if grp and isinstance(grp, str):
+                group_lookup[r.get("relation", "")] = grp
+        for kind, count in sorted(relation_types.items(), key=lambda x: -x[1]):
+            table.add_row(kind, group_lookup.get(kind, ""), str(count))
+        console.print(table)
+
+    if hub_genes:
+        table = Table(title=f"Top {top} Hub Nodes (by degree)")
+        table.add_column("Node")
+        table.add_column("Degree", justify="right")
+        for node, deg in hub_genes:
+            table.add_row(node, str(deg))
+        console.print(table)
+
+
+@result_app.command("terms")
+def result_terms(
+    result_path: Path = typer.Argument(..., exists=True, readable=True, help="Path to pipeline result JSON"),
+    db: str = typer.Option("all", "--db", help="Filter by database: GO, KEGG, or all"),
+    limit: int = typer.Option(0, "--limit", "-n", help="Max terms to show (0 = all)"),
+    json_output: bool = typer.Option(False, "--json", help="Print raw enrichment JSON"),
+) -> None:
+    """List enrichment terms from a result, optionally filtered by database."""
+    data = _load_result(result_path)
+    enrichment = data.get("enrichment_results", {})
+
+    db_upper = db.upper()
+    if db_upper == "ALL":
+        dbs = list(enrichment.keys())
+    elif db_upper in enrichment:
+        dbs = [db_upper]
+    else:
+        typer.secho(f"Database '{db}' not found. Available: {', '.join(enrichment.keys())}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    if json_output:
+        filtered = {k: enrichment[k] for k in dbs}
+        _dump_json(filtered)
+        return
+
+    for db_name in dbs:
+        rows = enrichment.get(db_name, [])
+        display = rows[:limit] if limit else rows
+        table = Table(title=f"{db_name} Terms ({len(rows)} total)")
+        table.add_column("#", justify="right")
+        table.add_column("Term")
+        table.add_column("Adj P", justify="right")
+        table.add_column("Overlap", justify="right")
+        table.add_column("Genes")
+        for i, row in enumerate(display, 1):
+            p_adj = row.get("p_adjusted")
+            p_str = f"{p_adj:.2e}" if isinstance(p_adj, (int, float)) else str(p_adj)
+            raw_genes = row.get("genes", "")
+            if isinstance(raw_genes, list):
+                genes_str = ", ".join(raw_genes)
+            elif isinstance(raw_genes, str):
+                genes_str = raw_genes.replace(";", ", ")
+            else:
+                genes_str = ""
+            table.add_row(str(i), str(row.get("term", "")), p_str, str(row.get("overlap", "")), genes_str)
+        console.print(table)
+
+
+@result_app.command("inspect")
+def result_inspect(
+    result_path: Path = typer.Argument(..., exists=True, readable=True, help="Path to pipeline result JSON"),
+    gene: str = typer.Option(..., "--gene", "-g", help="Gene symbol to inspect"),
+    json_output: bool = typer.Option(False, "--json", help="Print raw inspect JSON"),
+) -> None:
+    """Inspect a specific gene: its enrichment terms, relations, and paper mentions."""
+    data = _load_result(result_path)
+    gene_upper = gene.upper()
+
+    # Enrichment terms containing this gene
+    enrichment = data.get("enrichment_results", {})
+    matched_terms: list[dict[str, Any]] = []
+    for db_name, terms in enrichment.items():
+        for term in terms:
+            raw = term.get("genes", "")
+            if isinstance(raw, list):
+                term_genes = [g.upper() for g in raw]
+            elif isinstance(raw, str):
+                term_genes = [g.strip().upper() for g in raw.split(";") if g.strip()]
+            else:
+                term_genes = []
+            if gene_upper in term_genes:
+                matched_terms.append({"db": db_name, **term})
+
+    # Relations involving this gene
+    relations = data.get("gene_relations", [])
+    matched_relations = [
+        r for r in relations
+        if r.get("source", "").upper() == gene_upper or r.get("target", "").upper() == gene_upper
+    ]
+
+    # Papers mentioning this gene (check relations' PMIDs)
+    related_pmids = {r.get("pmid") for r in matched_relations if r.get("pmid")}
+    pubmed = data.get("sources", {}).get("pubmed", [])
+    matched_papers = [p for p in pubmed if p.get("pmid") in related_pmids]
+
+    if json_output:
+        _dump_json({
+            "gene": gene_upper,
+            "enrichment_terms": matched_terms,
+            "relations": matched_relations,
+            "papers": matched_papers,
+        })
+        return
+
+    console.print(f"\n[bold]Inspect: {gene_upper}[/bold]\n")
+
+    if matched_terms:
+        table = Table(title=f"Enrichment Terms ({len(matched_terms)})")
+        table.add_column("DB")
+        table.add_column("Term")
+        table.add_column("Adj P", justify="right")
+        table.add_column("Overlap", justify="right")
+        for t in matched_terms:
+            p_adj = t.get("p_adjusted")
+            p_str = f"{p_adj:.2e}" if isinstance(p_adj, (int, float)) else str(p_adj)
+            table.add_row(t.get("db", ""), str(t.get("term", "")), p_str, str(t.get("overlap", "")))
+        console.print(table)
+    else:
+        typer.echo(f"No enrichment terms found for {gene_upper}.")
+
+    if matched_relations:
+        table = Table(title=f"Relations ({len(matched_relations)})")
+        table.add_column("Source")
+        table.add_column("Relation")
+        table.add_column("Target")
+        table.add_column("Source DB")
+        table.add_column("PMID", justify="right")
+        for r in matched_relations:
+            table.add_row(
+                str(r.get("source", "")),
+                str(r.get("relation", "")),
+                str(r.get("target", "")),
+                str(r.get("source_db", "")),
+                str(r.get("pmid", "")),
+            )
+        console.print(table)
+    else:
+        typer.echo(f"No relations found for {gene_upper}.")
+
+    if matched_papers:
+        table = Table(title=f"Related Papers ({len(matched_papers)})")
+        table.add_column("PMID", justify="right")
+        table.add_column("Title")
+        table.add_column("Journal")
+        for p in matched_papers:
+            table.add_row(str(p.get("pmid", "")), str(p.get("title", "")), str(p.get("journal", "")))
+        console.print(table)
+    else:
+        typer.echo(f"No papers directly linked to {gene_upper} via relations.")
 
 
 @app.command()

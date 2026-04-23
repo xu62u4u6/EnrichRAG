@@ -33,6 +33,181 @@ make dev                      # frontend build + backend → http://localhost:90
 | `uv run enrichrag analyze` | CLI 跑完整 pipeline |
 | `uv run pytest tests/ -v` | 跑測試 |
 
+## CLI 研究流程（Agent 操作指南）
+
+以下是 agent 透過 terminal 執行基因分析的標準流程。依序操作，每步驗證後再進下一步。
+
+### 流程總覽
+
+```
+1. 確認 KG 就緒        → kg status
+2. 驗證 gene symbols   → genes validate（檢查 remap / rejected）
+3. 查疑問 gene 細節    → genes profile
+4. 跑分析              → analyze --validate-first
+5. 審閱結果            → result summary
+6. 深入追查            → result papers / terms / graph-stats / inspect
+```
+
+### Step 1 — 確認 KG
+
+```bash
+uv run enrichrag kg status
+```
+
+若 KG 不存在會提示 `enrichrag kg build`。確認有 gene_id_map 和 edges 才能繼續。
+
+### Step 2 — 驗證 Gene Symbols
+
+```bash
+# 人類可讀表格
+uv run enrichrag genes validate BRCA1 BRCA2 TP53 ATM CHEK2
+
+# 從檔案讀取（一行一個 gene，# 開頭為註解）
+uv run enrichrag genes validate --file genes.txt
+
+# 混合使用
+uv run enrichrag genes validate BRCA1 BRCA2 --file more_genes.txt
+
+# 機器可讀 JSON
+uv run enrichrag genes validate BRCA1 P53 NOPE --json
+```
+
+輸出：每個 gene 的 status（accepted / remapped / rejected）、normalized symbol、source。
+- **accepted**：完全匹配 HGNC canonical symbol
+- **remapped**：別名/舊名 → 標準名（如 P53 → TP53）
+- **rejected**：找不到對應，需修正後重試
+- 有任何 rejected → exit code 2
+
+### Step 3 — 查 Gene Profile
+
+```bash
+uv run enrichrag genes profile BRCA1
+uv run enrichrag genes profile TP53 --json
+```
+
+顯示 Gene ID、Official Symbol/Name、Type、Chromosome、Map Location、Synonyms、DBXrefs。
+資料來源：NCBI Homo_sapiens.gene_info.gz 快取。
+
+### Step 4 — 跑分析
+
+```bash
+uv run enrichrag analyze BRCA1 BRCA2 RAD51 ATM CHEK2 \
+  --disease "breast cancer" \
+  --pval 0.05 \
+  --validate-first \
+  --output output/result.json
+```
+
+| Flag | 預設 | 說明 |
+|------|------|------|
+| `--disease, -d` | `"cancer"` | 疾病 context |
+| `--pval, -p` | `0.05` | enrichment p-value 門檻 |
+| `--validate-first` | off | 先跑 validation，rejected 會警告但繼續用剩餘 genes 跑 |
+| `--strict` | off | 搭配 --validate-first，有任何 rejected 就中止（exit 2） |
+| `--file, -f` | — | 從檔案讀 gene list（一行一個，# 為註解） |
+| `--output, -o` | `output/result.json` | 輸出路徑 |
+| `--json` | off | validation 結果用 JSON 輸出（搭配 --validate-first） |
+
+`--validate-first` 會自動用 normalized symbols 跑 pipeline，不需要手動替換。
+rejected genes 會被跳過並顯示黃色警告，若全部 rejected 則中止（exit 2）。
+
+### Step 5 — 審閱結果
+
+```bash
+uv run enrichrag result summary output/result.json
+uv run enrichrag result summary output/result.json --json
+```
+
+Summary 包含：
+- 總覽表：genes 數、GO/KEGG terms 數、web/PubMed sources 數、relations 數、graph nodes/edges
+- Top 5 GO terms（term name、adjusted p-value、overlap）
+- Top 5 KEGG terms
+- Top 5 PubMed sources（PMID、title、journal）
+- Graph node type 分布
+- LLM insight preview（前 800 字）
+
+### Step 6 — 深入追查
+
+#### 查看所有文獻來源
+
+```bash
+uv run enrichrag result papers output/result.json
+uv run enrichrag result papers output/result.json --limit 10   # 限制顯示數量
+uv run enrichrag result papers output/result.json --json
+```
+
+列出所有 PubMed sources（PMID、title、journal、date）和 Web sources（title、URL）。
+
+#### 圖譜統計
+
+```bash
+uv run enrichrag result graph-stats output/result.json
+uv run enrichrag result graph-stats output/result.json --top 20  # top hub nodes 數量
+uv run enrichrag result graph-stats output/result.json --json
+```
+
+顯示：node type 分布、edge type 分布、relation type + group 分布、top hub nodes（by degree）。
+
+#### 查看 Enrichment Terms
+
+```bash
+uv run enrichrag result terms output/result.json                 # 全部 GO + KEGG
+uv run enrichrag result terms output/result.json --db GO         # 只看 GO
+uv run enrichrag result terms output/result.json --db KEGG --limit 10
+uv run enrichrag result terms output/result.json --json
+```
+
+完整列出 enrichment terms（term name、adjusted p-value、overlap、genes）。
+
+#### 反查特定 Gene
+
+```bash
+uv run enrichrag result inspect output/result.json --gene BRCA1
+uv run enrichrag result inspect output/result.json --gene ATM --json
+```
+
+顯示該 gene 涉及的：
+- Enrichment terms（哪些 GO/KEGG terms 包含此 gene）
+- Relations（與其他 genes/diseases/chemicals 的關係）
+- Related papers（透過 relations 連結到的 PubMed 文獻）
+
+### 完整範例（推薦操作序列）
+
+```bash
+# 1. 環境確認
+uv run enrichrag kg status
+
+# 2. 驗證
+uv run enrichrag genes validate BRCA1 BRCA2 RAD51 RAD52 ATM ATR CHEK1 CHEK2 MLH1 MSH2 MSH6 PMS2
+
+# 3. 分析（含自動驗證，rejected 會警告但繼續）
+uv run enrichrag analyze BRCA1 BRCA2 RAD51 RAD52 ATM ATR CHEK1 CHEK2 MLH1 MSH2 MSH6 PMS2 \
+  --disease "breast cancer" \
+  --pval 0.05 \
+  --validate-first
+
+# 4. 摘要總覽
+uv run enrichrag result summary output/result.json
+
+# 5. 深入追查
+uv run enrichrag result papers output/result.json           # 文獻來源
+uv run enrichrag result graph-stats output/result.json      # 圖譜統計
+uv run enrichrag result terms output/result.json --db GO    # GO terms
+uv run enrichrag result inspect output/result.json --gene BRCA1  # 反查 BRCA1
+
+# 從檔案讀 gene list
+uv run enrichrag analyze --file genes.txt --disease "breast cancer" --validate-first
+```
+
+### 其他指令
+
+```bash
+uv run enrichrag version          # 版本
+uv run enrichrag serve            # 啟動 web server（同 make backend）
+uv run enrichrag kg build         # 建置 KG（首次約 10 分鐘）
+uv run enrichrag kg build --source ncbi --force  # 重建單一來源
+```
+
 ## Pipeline 流程
 
 ```
@@ -170,7 +345,8 @@ frontend/
 └── dist/                      ← Build output (served by FastAPI)
 
 tests/
-└── test_enrichment_cases.py   ← enrichment integration tests
+├── test_enrichment_cases.py   ← enrichment integration tests
+└── test_cli.py                ← CLI subcommands (validate, profile, summary)
 ```
 
 ## 技術棧
