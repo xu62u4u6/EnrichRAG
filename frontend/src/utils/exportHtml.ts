@@ -56,6 +56,8 @@ const EXPORT_OVERRIDES = `
     font-size: 15px;
     font-weight: 800;
   }
+  /* Disable flowing dash animation in static export */
+  .graph-link[stroke-dasharray] { animation: none; }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
   .network-summary {
@@ -425,17 +427,25 @@ function buildTabButtons(result: PipelineResult): string {
   `).join('');
 }
 
-/** Capture the live SVG from the network graph in the DOM, if present. */
+/** Capture the live SVG and legend from the network graph in the DOM, if present. */
 export function captureNetworkSvg(): string | undefined {
-  const svg = document.querySelector('.graph-canvas svg') as SVGSVGElement | null;
-  if (!svg) return undefined;
-  // Clone so we don't mutate the live DOM
+  const canvas = document.querySelector('.graph-canvas') as HTMLDivElement | null;
+  const svg = canvas?.querySelector('svg') as SVGSVGElement | null;
+  if (!canvas || !svg) return undefined;
+
+  // Clone SVG so we don't mutate the live DOM
   const clone = svg.cloneNode(true) as SVGSVGElement;
-  // Ensure the SVG has explicit dimensions for the static export
   if (!clone.getAttribute('xmlns')) {
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   }
-  return clone.outerHTML;
+  // Remove interactive cursor style from static export
+  clone.style.cursor = '';
+
+  // Include the legend div (position: absolute overlay) if present
+  const legend = canvas.querySelector('.graph-legend');
+  const legendHtml = legend ? (legend as HTMLElement).outerHTML : '';
+
+  return clone.outerHTML + legendHtml;
 }
 
 export function buildResultHtml(input: PipelineResult, svgSnapshot?: string): string {
