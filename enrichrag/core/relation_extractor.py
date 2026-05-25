@@ -9,12 +9,20 @@ from enrichrag.core.extraction_cache import ExtractionCache
 from enrichrag.logging import logger
 
 
+_VALID_ENTITY_TYPES = {"gene", "disease", "drug", "pathway", "other"}
+
+
 class BioEntity(BaseModel):
     """A biomedical entity extracted from text."""
     name: str = Field(description="Entity name, e.g. TP53, irinotecan, breast cancer")
     type: Literal["gene", "disease", "drug", "pathway", "other"] = Field(
         description="Entity type"
     )
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_entity_type(cls, value: str) -> str:
+        return value if value in _VALID_ENTITY_TYPES else "other"
 
 
 class BioRelation(BaseModel):
@@ -32,6 +40,11 @@ class BioRelation(BaseModel):
         "associate", "treat", "cause", "biomarker", "interact",
     ] = Field(description="Relation type between source and target")
     evidence: str = Field(description="Supporting sentence from the source text")
+
+    @field_validator("source_type", "target_type", mode="before")
+    @classmethod
+    def normalize_entity_types(cls, value: str) -> str:
+        return value if value in _VALID_ENTITY_TYPES else "other"
 
     @field_validator("relation", mode="before")
     @classmethod
