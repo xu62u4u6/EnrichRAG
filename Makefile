@@ -1,6 +1,7 @@
-.PHONY: dev build start frontend backend clean kg-build deploy
+.PHONY: dev build start frontend backend dev-backend clean kg-build deploy
 
 DEPLOY_DIR ?= $(HOME)/enrichrag-prod
+DEV_DB := $(HOME)/.enrichrag/dev/auth.db
 
 # ── Dev (frontend build + backend on port 9002) ──
 dev: build
@@ -16,6 +17,10 @@ build:
 # ── Backend ──
 backend:
 	uv run uvicorn enrichrag.api.app:app --host 0.0.0.0 --port 9001 --reload
+
+# ── Dev backend (isolated DB, safe for frontend dev) ──
+dev-backend:
+	AUTH_DB_PATH=$(DEV_DB) uv run uvicorn enrichrag.api.app:app --host 0.0.0.0 --port 6432 --reload
 
 # ── Deploy (copy to separate directory, serves on port 9001, isolated from dev) ──
 deploy:
