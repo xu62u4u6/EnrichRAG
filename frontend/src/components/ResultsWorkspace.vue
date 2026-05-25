@@ -66,7 +66,7 @@
             :key="tab.id"
             class="tab-btn"
             :class="{ active: activeTab === tab.id }"
-            :disabled="analysis.running && !analysis.result && tab.id !== 'pipeline'"
+            :disabled="false"
             @click="activeTab = tab.id"
           >
             <component :is="tab.icon" :size="15" />
@@ -80,7 +80,7 @@
       <GenesTab v-if="activeTab === 'genes'" />
       <EnrichmentTab v-if="activeTab === 'enrichment'" />
       <SourcesTab v-if="activeTab === 'sources'" />
-      <NetworkTab v-if="activeTab === 'network'" />
+      <NetworkTab v-show="activeTab === 'network'" />
       <ReportTab v-if="activeTab === 'report'" />
     </template>
   </div>

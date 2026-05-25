@@ -1,13 +1,14 @@
 <template>
-  <div class="table-card network-tab-card">
+  <div class="table-card network-tab-card" :class="{ 'is-fullscreen': isFullscreen }" @keydown.esc.stop="exitFullscreen">
     <div v-if="!allNodes.length" class="state-card state-card-compact">
       <h3>No network data</h3>
       <p>No network data yet — a partial graph will appear after local KG lookup.</p>
     </div>
     <template v-else>
       <div class="network-tab-controls">
+
+        <!-- Row 1: presets + status + actions -->
         <div class="network-controls-header">
-          <!-- Segmented control presets -->
           <div class="segmented-control">
             <button
               v-for="preset in presets"
@@ -20,16 +21,64 @@
               {{ preset.label }}
             </button>
           </div>
-          
-          <!-- Status bar -->
+
           <div class="graph-status-bar source-meta-badge">
             {{ filteredNodes.length }} nodes · {{ filteredEdges.length }} edges
             <button class="reset-btn" @click="applyPreset(activePreset)">Reset</button>
           </div>
         </div>
 
+        <!-- Row 2: toolbar (search + action buttons) -->
+        <div class="graph-toolbar">
+          <!-- Search -->
+          <div class="graph-search-box" :class="{ 'has-results': searchResults.length > 0 }">
+            <Search :size="13" class="graph-search-icon" />
+            <input
+              ref="searchInputEl"
+              v-model="searchQuery"
+              class="graph-search-input"
+              placeholder="Search nodes…"
+              @keydown.enter.prevent="nextSearchResult"
+              @keydown.escape="clearSearch"
+            />
+            <span v-if="searchResults.length" class="graph-search-count">
+              {{ searchIndex + 1 }}/{{ searchResults.length }}
+            </span>
+            <button v-if="searchResults.length > 1" class="graph-search-nav" @click="prevSearchResult" title="Previous">
+              <ChevronUp :size="11" />
+            </button>
+            <button v-if="searchResults.length > 1" class="graph-search-nav" @click="nextSearchResult" title="Next">
+              <ChevronDown :size="11" />
+            </button>
+            <button v-if="searchQuery" class="graph-search-clear" @click="clearSearch">
+              <X :size="11" />
+            </button>
+          </div>
 
-        <!-- Accordion filters (visible when Custom preset is active) -->
+          <div class="graph-action-btns">
+            <!-- Selection mode toggle -->
+            <button
+              class="graph-action-btn"
+              :class="{ active: selectionMode }"
+              :title="selectionMode ? 'Exit selection mode' : 'Enter selection mode'"
+              @click="toggleSelectionMode"
+            >
+              <MousePointer2 :size="14" />
+              <span>Select</span>
+            </button>
+
+            <!-- Fullscreen -->
+            <button
+              class="graph-action-btn"
+              :title="isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'"
+              @click="toggleFullscreen"
+            >
+              <component :is="isFullscreen ? Minimize2 : Maximize2" :size="14" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Accordion filters (custom preset) -->
         <div v-show="activePreset === 'custom'" class="filter-accordion">
           <!-- Source section -->
           <div class="filter-section">
@@ -97,7 +146,7 @@
             </div>
           </div>
 
-          <!-- Relation Type section — hierarchical -->
+          <!-- Relation Type section -->
           <div v-if="relationGroupOptions.length" class="filter-section">
             <div class="filter-section-header" @click="toggleSection('relation')">
               <div class="filter-section-left">
@@ -116,7 +165,6 @@
                   >
                     {{ group.label }} <span class="pill-count">{{ group.totalCount }}</span>
                   </button>
-                  
                   <div v-if="group.subtypes.length > 0 && (isGroupFullyActive(group) || isGroupPartiallyActive(group))" class="filter-children-row">
                     <div class="filter-branch-line"></div>
                     <div class="relation-subtypes-horiz">
@@ -137,17 +185,89 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Selection / Groups panel -->
+      <div v-if="selectionMode || groups.length > 0" class="graph-selection-panel">
+
+        <!-- Active selection info -->
+        <div v-if="selectionMode" class="graph-sel-info">
+          <div class="graph-sel-count">
+            <MousePointer2 :size="13" />
+            <span>{{ selectedNodeIds.size }} selected</span>
+            <button v-if="selectedNodeIds.size > 0" class="graph-sel-clear" @click="clearSelection">Clear</button>
+          </div>
+          <div class="graph-group-create">
+            <input
+              v-model="newGroupName"
+              class="graph-group-name-input"
+              placeholder="Group name…"
+              @keydown.enter.prevent="createGroup"
+            />
+            <button
+              class="graph-action-btn graph-action-btn-sm"
+              :disabled="selectedNodeIds.size === 0 || !newGroupName.trim()"
+              @click="createGroup"
+            >
+              <Plus :size="13" /> Add Group
+            </button>
+          </div>
+        </div>
+
+        <!-- Groups list -->
+        <div v-if="groups.length > 0" class="graph-groups-list">
+          <div
+            v-for="grp in groups"
+            :key="grp.id"
+            class="graph-group-item"
+            :style="{ '--grp-color': grp.color }"
+          >
+            <span class="graph-group-dot"></span>
+            <span class="graph-group-name">{{ grp.name }}</span>
+            <span class="graph-group-count">{{ grp.nodeIds.length }} genes</span>
+            <button class="graph-group-action" :title="'Copy gene list: ' + grp.name" @click="copyGroupGenes(grp)">
+              <Check v-if="copiedGroupId === grp.id" :size="12" />
+              <Copy v-else :size="12" />
+            </button>
+            <button
+              v-if="selectionMode"
+              class="graph-group-action"
+              title="Select group nodes"
+              @click="selectGroup(grp)"
+            >
+              <MousePointer2 :size="12" />
+            </button>
+            <button class="graph-group-action graph-group-delete" title="Remove group" @click="removeGroup(grp.id)">
+              <X :size="12" />
+            </button>
+          </div>
+        </div>
 
       </div>
 
-      <NetworkGraph :nodes="filteredNodes" :edges="filteredEdges" @node-click="handleNodeClick" />
+      <NetworkGraph
+        ref="graphRef"
+        :nodes="filteredNodes"
+        :edges="filteredEdges"
+        :selection-mode="selectionMode"
+        :selected-node-ids="selectedNodeIds"
+        :group-color-map="groupColorMap"
+        :search-match-ids="searchMatchIds"
+        @node-click="handleNodeClick"
+        @node-select="handleNodeSelect"
+        @lasso-select="handleLassoSelect"
+      />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { Layers, GitFork, Tags, Heart, SlidersHorizontal } from 'lucide-vue-next';
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import {
+  Layers, GitFork, Tags, Heart, SlidersHorizontal,
+  Search, ChevronUp, ChevronDown, X, MousePointer2, Maximize2, Minimize2,
+  Plus, Copy, Check,
+} from 'lucide-vue-next';
 import NetworkGraph from '../NetworkGraph.vue';
 import { useAnalysisStore } from '../../stores/analysis';
 import { useGeneDrawerStore } from '../../stores/geneDrawer';
@@ -160,9 +280,7 @@ type SectionId = 'source' | 'enrichment' | 'relation';
 /* ── Source classification ── */
 
 function classifyEdgeSource(edge: GraphEdge): { category: SourceCategory; db: string } {
-  if (edge.type === 'enrichment') {
-    return { category: 'literature', db: '' };
-  }
+  if (edge.type === 'enrichment') return { category: 'literature', db: '' };
   const db = (edge.source_db || '').toLowerCase();
   if (db === 'reactome' || db === 'kegg' || db === 'string' || db === 'pubtator') {
     return { category: 'local-kg', db };
@@ -177,7 +295,7 @@ function classifyEnrichmentSource(edge: GraphEdge): string {
   return 'other';
 }
 
-/* ── Relation group mapping (mirrors backend relation_taxonomy.py) ── */
+/* ── Relation groups ── */
 
 const RELATION_TO_GROUP: Record<string, string> = {
   activate: 'Regulation', inhibit: 'Regulation',
@@ -201,12 +319,18 @@ const RELATION_LABELS: Record<string, string> = {
   positive_correlate: 'Positive', negative_correlate: 'Negative',
 };
 
-// Desired display order
 const GROUP_ORDER = ['Regulation', 'Interaction', 'Association', 'Expression', 'Clinical', 'Correlation'];
 
 function getRelationGroup(relation: string): string {
   return RELATION_TO_GROUP[relation] || (relation ? 'Other' : 'Association');
 }
+
+/* ── Group color palette ── */
+
+const GROUP_COLORS = [
+  '#6366f1', '#f59e0b', '#10b981', '#ef4444',
+  '#8b5cf6', '#06b6d4', '#f97316', '#ec4899',
+];
 
 /* ── Presets ── */
 
@@ -223,37 +347,59 @@ const presets: { id: PresetId; label: string; icon: typeof Layers }[] = [
 const analysis = useAnalysisStore();
 const geneDrawer = useGeneDrawerStore();
 
-/* ── State ── */
+/* ── Filter state ── */
 
 const activePreset = ref<PresetId>('overview');
 const openSection = ref<SectionId | null>(null);
-const expandedGroups = ref(new Set<string>());
-
-// Source filters
 const activeSources = ref(new Set<SourceCategory>(['literature', 'local-kg']));
 const activeKgSources = ref(new Set<string>());
 const activeEnrichment = ref(new Set<string>());
-// Relation filters — now tracks individual relations, not groups
 const activeRelations = ref(new Set<string>());
 const activeNodeTypes = ref(new Set<string>());
+
+/* ── Graph ref ── */
+
+const graphRef = ref<InstanceType<typeof NetworkGraph> | null>(null);
+
+/* ── Search state ── */
+
+const searchQuery = ref('');
+const searchIndex = ref(0);
+const searchInputEl = ref<HTMLInputElement | null>(null);
+
+/* ── Selection + groups state ── */
+
+const selectionMode = ref(false);
+const selectedNodeIds = ref(new Set<string>());
+const newGroupName = ref('');
+const copiedGroupId = ref<string | null>(null);
+
+interface NodeGroup {
+  id: string;
+  name: string;
+  color: string;
+  nodeIds: string[];
+}
+const groups = ref<NodeGroup[]>([]);
+
+/* ── Fullscreen state ── */
+
+const isFullscreen = ref(false);
 
 /* ── Computed data ── */
 
 const allNodes = computed(() => analysis.result?.graph?.nodes || []);
 const allEdges = computed(() => analysis.result?.graph?.edges || []);
-
 const relationEdges = computed(() => allEdges.value.filter((e) => e.type === 'relation'));
 const enrichmentEdges = computed(() => allEdges.value.filter((e) => e.type === 'enrichment'));
-
 const inputGeneIds = computed(() =>
   new Set(allNodes.value.filter((n) => n.type === 'gene' && (n as GraphNode & { is_input?: boolean }).is_input).map(resolveNodeId)),
 );
 
-/* ── Source categories with counts ── */
+/* ── Source categories ── */
 
 const sourceCategories = computed(() => {
-  let litCount = 0;
-  let kgCount = 0;
+  let litCount = 0, kgCount = 0;
   for (const e of relationEdges.value) {
     const { category } = classifyEdgeSource(e);
     if (category === 'literature') litCount++;
@@ -269,14 +415,10 @@ const kgSubSources = computed(() => {
   const counts: Record<string, number> = {};
   for (const e of relationEdges.value) {
     const { category, db } = classifyEdgeSource(e);
-    if (category === 'local-kg' && db) {
-      counts[db] = (counts[db] || 0) + 1;
-    }
+    if (category === 'local-kg' && db) counts[db] = (counts[db] || 0) + 1;
   }
   const labelMap: Record<string, string> = { reactome: 'Reactome', kegg: 'KEGG', string: 'STRING', pubtator: 'PubTator' };
-  return Object.entries(counts)
-    .map(([id, count]) => ({ id, label: labelMap[id] || id, count }))
-    .sort((a, b) => b.count - a.count);
+  return Object.entries(counts).map(([id, count]) => ({ id, label: labelMap[id] || id, count })).sort((a, b) => b.count - a.count);
 });
 
 const enrichmentSources = computed(() => {
@@ -292,87 +434,43 @@ const enrichmentSources = computed(() => {
     .sort((a, b) => b.count - a.count);
 });
 
-/* ── Relation groups — hierarchical with counts ── */
+/* ── Relation groups ── */
 
-interface RelationSubtype {
-  relation: string;
-  label: string;
-  count: number;
-}
-
-interface RelationGroupOption {
-  label: string;
-  subtypes: RelationSubtype[];
-  totalCount: number;
-}
+interface RelationSubtype { relation: string; label: string; count: number }
+interface RelationGroupOption { label: string; subtypes: RelationSubtype[]; totalCount: number }
 
 const relationGroupOptions = computed<RelationGroupOption[]>(() => {
-  // Count each relation type
   const counts: Record<string, number> = {};
   for (const e of relationEdges.value) {
     const r = e.relation || 'associate';
     counts[r] = (counts[r] || 0) + 1;
   }
-
-  // Group by relation_group
   const groupMap = new Map<string, RelationSubtype[]>();
   for (const [relation, count] of Object.entries(counts)) {
     const group = getRelationGroup(relation);
     if (!groupMap.has(group)) groupMap.set(group, []);
-    groupMap.get(group)!.push({
-      relation,
-      label: RELATION_LABELS[relation] || relation,
-      count,
-    });
+    groupMap.get(group)!.push({ relation, label: RELATION_LABELS[relation] || relation, count });
   }
-
-  // Sort subtypes by count within each group
-  for (const subtypes of groupMap.values()) {
-    subtypes.sort((a, b) => b.count - a.count);
-  }
-
-  // Return in display order
+  for (const subtypes of groupMap.values()) subtypes.sort((a, b) => b.count - a.count);
   const result: RelationGroupOption[] = [];
   for (const groupLabel of GROUP_ORDER) {
     const subtypes = groupMap.get(groupLabel);
-    if (subtypes?.length) {
-      result.push({
-        label: groupLabel,
-        subtypes,
-        totalCount: subtypes.reduce((sum, s) => sum + s.count, 0),
-      });
-    }
+    if (subtypes?.length) result.push({ label: groupLabel, subtypes, totalCount: subtypes.reduce((s, x) => s + x.count, 0) });
   }
-  // Add "Other" if any
   const otherSubtypes = groupMap.get('Other');
-  if (otherSubtypes?.length) {
-    result.push({
-      label: 'Other',
-      subtypes: otherSubtypes,
-      totalCount: otherSubtypes.reduce((sum, s) => sum + s.count, 0),
-    });
-  }
+  if (otherSubtypes?.length) result.push({ label: 'Other', subtypes: otherSubtypes, totalCount: otherSubtypes.reduce((s, x) => s + x.count, 0) });
   return result;
 });
 
 const allRelationTypesInData = computed(() => {
   const types = new Set<string>();
-  for (const e of relationEdges.value) {
-    types.add(e.relation || 'associate');
-  }
+  for (const e of relationEdges.value) types.add(e.relation || 'associate');
   return types;
 });
-
-const allNodeTypes = computed(() =>
-  Array.from(new Set(allNodes.value.map((n) => n.type).filter((v): v is string => Boolean(v)))).sort(),
-);
-
-/* ── Group active state helpers ── */
 
 function isGroupFullyActive(group: RelationGroupOption): boolean {
   return group.subtypes.every((s) => activeRelations.value.has(s.relation));
 }
-
 function isGroupPartiallyActive(group: RelationGroupOption): boolean {
   return !isGroupFullyActive(group) && group.subtypes.some((s) => activeRelations.value.has(s.relation));
 }
@@ -401,15 +499,12 @@ const relationSummary = computed(() => {
   return activeGroups.map((g) => g.label).join(' · ') || 'None';
 });
 
-/* ── Initialize filters when data arrives ── */
+/* ── Filtering ── */
 
 watch(allEdges, () => { applyPreset(activePreset.value); }, { immediate: true });
 
-/* ── Preset application ── */
-
 function applyPreset(id: PresetId) {
   activePreset.value = id;
-
   if (id === 'custom') return;
 
   const allKg = kgSubSources.value.map((s) => s.id);
@@ -442,7 +537,6 @@ function applyPreset(id: PresetId) {
       activeSources.value = new Set(['literature', 'local-kg']);
       activeKgSources.value = new Set(allKg);
       activeEnrichment.value = new Set();
-      // Only clinical + association relations
       const clinicalRels = allRels.filter((r) => {
         const g = getRelationGroup(r);
         return g === 'Clinical' || g === 'Association';
@@ -454,17 +548,8 @@ function applyPreset(id: PresetId) {
   }
 }
 
-function setCustom() {
-  activePreset.value = 'custom';
-}
-
-/* ── Section accordion ── */
-
-function toggleSection(id: SectionId) {
-  openSection.value = openSection.value === id ? null : id;
-}
-
-/* ── Toggle helpers ── */
+function setCustom() { activePreset.value = 'custom'; }
+function toggleSection(id: SectionId) { openSection.value = openSection.value === id ? null : id; }
 
 function toggleSetValue<T>(target: Set<T>, value: T): Set<T> {
   const next = new Set(target);
@@ -472,40 +557,19 @@ function toggleSetValue<T>(target: Set<T>, value: T): Set<T> {
   return next;
 }
 
-function toggleSource(id: SourceCategory) {
-  activeSources.value = toggleSetValue(activeSources.value, id);
-}
-
-function toggleKgSource(id: string) {
-  activeKgSources.value = toggleSetValue(activeKgSources.value, id);
-}
-
-function toggleEnrichment(id: string) {
-  activeEnrichment.value = toggleSetValue(activeEnrichment.value, id);
-}
-
-function toggleRelation(relation: string) {
-  activeRelations.value = toggleSetValue(activeRelations.value, relation);
-}
+function toggleSource(id: SourceCategory) { activeSources.value = toggleSetValue(activeSources.value, id); }
+function toggleKgSource(id: string) { activeKgSources.value = toggleSetValue(activeKgSources.value, id); }
+function toggleEnrichment(id: string) { activeEnrichment.value = toggleSetValue(activeEnrichment.value, id); }
+function toggleRelation(relation: string) { activeRelations.value = toggleSetValue(activeRelations.value, relation); }
 
 function toggleWholeGroup(group: RelationGroupOption) {
   const allActive = isGroupFullyActive(group);
   const next = new Set(activeRelations.value);
   for (const sub of group.subtypes) {
-    if (allActive) {
-      next.delete(sub.relation);
-    } else {
-      next.add(sub.relation);
-    }
+    allActive ? next.delete(sub.relation) : next.add(sub.relation);
   }
   activeRelations.value = next;
 }
-
-function toggleExpandedGroup(label: string) {
-  expandedGroups.value = toggleSetValue(expandedGroups.value, label);
-}
-
-/* ── Filtering ── */
 
 const filteredEdges = computed(() => {
   const allowedNodeIds = new Set(
@@ -518,18 +582,14 @@ const filteredEdges = computed(() => {
     if (edge.type === 'enrichment') {
       const src = classifyEnrichmentSource(edge);
       if (!activeEnrichment.value.has(src)) return false;
-      // Only require the source (gene) side to match node types;
-      // the target (GO/KEGG term) is implied by enabling enrichment.
       const sourceId = resolveEdgeNodeId(edge.source);
       return allowedNodeIds.has(sourceId);
     } else if (edge.type === 'relation') {
       const { category, db } = classifyEdgeSource(edge);
       if (!activeSources.value.has(category)) return false;
       if (category === 'local-kg' && db && !activeKgSources.value.has(db)) return false;
-
       const relation = edge.relation || 'associate';
       if (!activeRelations.value.has(relation)) return false;
-
       const sourceId = resolveEdgeNodeId(edge.source);
       const targetId = resolveEdgeNodeId(edge.target);
       return allowedNodeIds.has(sourceId) && allowedNodeIds.has(targetId);
@@ -540,20 +600,15 @@ const filteredEdges = computed(() => {
 
 const filteredNodes = computed(() => {
   const connectedIds = new Set<string>();
-  // Collect IDs from enrichment edges separately — their targets
-  // (GO/KEGG terms) should always be included regardless of activeNodeTypes.
   const enrichmentTargetIds = new Set<string>();
   filteredEdges.value.forEach((edge) => {
     connectedIds.add(resolveEdgeNodeId(edge.source));
     connectedIds.add(resolveEdgeNodeId(edge.target));
-    if (edge.type === 'enrichment') {
-      enrichmentTargetIds.add(resolveEdgeNodeId(edge.target));
-    }
+    if (edge.type === 'enrichment') enrichmentTargetIds.add(resolveEdgeNodeId(edge.target));
   });
 
   return allNodes.value.filter((node) => {
     const nodeId = resolveNodeId(node);
-    // Enrichment targets bypass node type filter
     if (enrichmentTargetIds.has(nodeId)) return true;
     const matchesType = node.type ? activeNodeTypes.value.has(node.type) : true;
     if (!matchesType) return false;
@@ -566,9 +621,68 @@ const filteredNodes = computed(() => {
 function resolveNodeId(node: GraphNode) {
   return node.id || node.label || node.name || 'node';
 }
-
 function resolveEdgeNodeId(node: GraphNode | string) {
   return typeof node === 'string' ? node : resolveNodeId(node);
+}
+
+/* ── Search ── */
+
+const searchResults = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return [];
+  return filteredNodes.value
+    .filter((n) => {
+      const label = (n.label || n.name || n.id || '').toLowerCase();
+      return label.includes(q);
+    })
+    .map(resolveNodeId);
+});
+
+const searchMatchIds = computed<Set<string> | null>(() => {
+  if (!searchQuery.value.trim() || searchResults.value.length === 0) return null;
+  return new Set(searchResults.value);
+});
+
+watch(searchResults, (results) => {
+  searchIndex.value = 0;
+  if (results.length > 0) focusSearchResult(0);
+});
+
+watch(searchQuery, (q) => {
+  if (!q) searchIndex.value = 0;
+});
+
+function focusSearchResult(idx: number) {
+  const nodeId = searchResults.value[idx];
+  if (nodeId) graphRef.value?.focusNode(nodeId);
+}
+
+function nextSearchResult() {
+  if (!searchResults.value.length) return;
+  searchIndex.value = (searchIndex.value + 1) % searchResults.value.length;
+  focusSearchResult(searchIndex.value);
+}
+
+function prevSearchResult() {
+  if (!searchResults.value.length) return;
+  searchIndex.value = (searchIndex.value - 1 + searchResults.value.length) % searchResults.value.length;
+  focusSearchResult(searchIndex.value);
+}
+
+function clearSearch() {
+  searchQuery.value = '';
+  searchIndex.value = 0;
+}
+
+/* ── Selection mode ── */
+
+function toggleSelectionMode() {
+  selectionMode.value = !selectionMode.value;
+  if (!selectionMode.value) clearSelection();
+}
+
+function clearSelection() {
+  selectedNodeIds.value = new Set();
 }
 
 function handleNodeClick(node: GraphNode) {
@@ -576,4 +690,112 @@ function handleNodeClick(node: GraphNode) {
   const symbol = node.label || node.name || resolveNodeId(node).replace(/^gene:/, '');
   if (symbol) geneDrawer.openGene(symbol);
 }
+
+function handleNodeSelect(nodeId: string) {
+  const next = new Set(selectedNodeIds.value);
+  next.has(nodeId) ? next.delete(nodeId) : next.add(nodeId);
+  selectedNodeIds.value = next;
+}
+
+function handleLassoSelect(nodeIds: string[]) {
+  const next = new Set(selectedNodeIds.value);
+  // Toggle: if all selected → deselect, else add all
+  const allAlreadySelected = nodeIds.every((id) => next.has(id));
+  for (const id of nodeIds) {
+    allAlreadySelected ? next.delete(id) : next.add(id);
+  }
+  selectedNodeIds.value = next;
+}
+
+/* ── Groups ── */
+
+function createGroup() {
+  const name = newGroupName.value.trim();
+  if (!name || selectedNodeIds.value.size === 0) return;
+
+  const usedColors = new Set(groups.value.map((g) => g.color));
+  const color = GROUP_COLORS.find((c) => !usedColors.has(c)) || GROUP_COLORS[groups.value.length % GROUP_COLORS.length];
+
+  // Only include gene nodes in the group for export purposes
+  const geneIds = Array.from(selectedNodeIds.value).filter((id) => {
+    const node = filteredNodes.value.find((n) => resolveNodeId(n) === id);
+    return node?.type === 'gene';
+  });
+
+  groups.value.push({
+    id: `grp-${Date.now()}`,
+    name,
+    color,
+    nodeIds: geneIds.length > 0 ? geneIds : Array.from(selectedNodeIds.value),
+  });
+
+  newGroupName.value = '';
+  clearSelection();
+}
+
+function removeGroup(id: string) {
+  groups.value = groups.value.filter((g) => g.id !== id);
+}
+
+function selectGroup(grp: NodeGroup) {
+  selectedNodeIds.value = new Set(grp.nodeIds);
+}
+
+async function copyGroupGenes(grp: NodeGroup) {
+  // Resolve gene symbols from node IDs
+  const symbols = grp.nodeIds.map((id) => {
+    const node = allNodes.value.find((n) => resolveNodeId(n) === id);
+    return node?.label || node?.name || id.replace(/^gene:/, '');
+  });
+  const text = symbols.join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+  copiedGroupId.value = grp.id;
+  setTimeout(() => { copiedGroupId.value = null; }, 1500);
+}
+
+const groupColorMap = computed<Map<string, string>>(() => {
+  const map = new Map<string, string>();
+  for (const grp of groups.value) {
+    for (const id of grp.nodeIds) map.set(id, grp.color);
+  }
+  return map;
+});
+
+/* ── Fullscreen ── */
+
+function toggleFullscreen() {
+  graphRef.value?.savePositions();
+  isFullscreen.value = !isFullscreen.value;
+  // Re-render with new container dimensions after layout
+  nextTick(() => {
+    setTimeout(() => {
+      // Trigger resize-based re-render in the graph
+      window.dispatchEvent(new Event('resize'));
+    }, 50);
+  });
+}
+
+function exitFullscreen() {
+  if (isFullscreen.value) {
+    graphRef.value?.savePositions();
+    isFullscreen.value = false;
+  }
+}
+
+// Close fullscreen on Escape globally
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && isFullscreen.value) exitFullscreen();
+}
+onMounted(() => window.addEventListener('keydown', onKeydown));
+onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 </script>
