@@ -1,5 +1,19 @@
 # TODO
 
+## GraphRAG
+
+**Graph traversal（真正的 GraphRAG）**
+- [ ] NetworkX multi-hop traversal — `get_paths(gene_a, gene_b, hops=2)`, `get_neighborhood(genes, hops=2)`
+- [ ] Feed traversal result to LLM instead of flat edge list
+
+**Agentic paper fetching**
+- [ ] LLM tool use for PubMed/web search — LLM decides when to fetch more papers (function calling)
+- [ ] Quick fix: bump `max_results` from 5 → 15
+
+**Quality evaluation**
+- [ ] Relation precision: random sample + manual review workflow
+- [ ] Gene coverage: % of input genes found in KG
+
 ## v0.4 — Graph Expansion & Gap Discovery
 
 **Graph neighbor expansion**
