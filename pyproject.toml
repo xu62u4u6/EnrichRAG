@@ -7,6 +7,10 @@ name = "enrichrag"
 version = "0.3.0"
 description = "Literature-augmented gene set enrichment framework"
 requires-python = ">=3.10"
+keywords = [
+  "bioinformatics", "gene-set-enrichment", "enrichment-analysis",
+  "gene-ontology", "kegg", "knowledge-graph", "pubmed", "llm", "rag",
+]
 
 dependencies = [
   "gseapy",
@@ -28,6 +32,9 @@ dependencies = [
   "pydantic-settings>=2.0",
   "loguru",
 ]
+
+[project.urls]
+Homepage = "https://github.com/xu62u4u6/EnrichRAG"
 
 [project.scripts]
 enrichrag = "enrichrag.cli:app"
