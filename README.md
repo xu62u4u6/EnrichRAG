@@ -243,6 +243,20 @@ frontend/
 └── dist/               # Build output (served by FastAPI)
 ```
 
+## Related projects
+
+- [pymaftools](https://github.com/xu62u4u6/pymaftools) — MAF and multi-omics
+  cancer genomics toolkit. Use it to turn somatic mutation data (MAF/VCF) into a
+  gene list, then interpret that list here:
+
+  ```bash
+  enrichrag analyze --file genes.txt --disease "lung cancer" --output result.json
+  ```
+
+  The projects exchange plain data and do not import each other. A raw
+  "most mutated genes" list is biased toward long genes such as `TTN`; see the
+  [pymaftools hand-off guide](https://dionic.xyz/pymaftools/ecosystem.html).
+
 ## Roadmap
 
 ### v0.1 — Core Framework ✅
@@ -267,6 +281,7 @@ SQLite-backed KG with unified edge schema. Importers for STRING v12.0, KEGG Path
 - `rank_nodes()` — degree / PageRank scoring
 - Gap detection — find unlinked gene pairs → PubMed → LLM extraction → graph grows with usage
 - Gene-pair level cache (current cache is PMID-level only)
+- Custom background gene set (`gseapy.enrichr(background=...)`) for gene lists from targeted assays or mutation data
 
 ### v0.5 — Visualization Enhancements
 
