@@ -3,8 +3,13 @@
 ## GraphRAG
 
 **Graph traversal（真正的 GraphRAG）**
-- [ ] NetworkX multi-hop traversal — `get_paths(gene_a, gene_b, hops=2)`, `get_neighborhood(genes, hops=2)`
-- [ ] Feed traversal result to LLM instead of flat edge list
+- [ ] `KnowledgeGraph.get_neighborhood(genes, hops=2)` — iterative SQL hop（全 KG 1380 萬條邊，不能全載入）
+  - hop 1: `WHERE source IN (genes) OR target IN (genes)` → 取鄰居節點
+  - hop 2: 同上但對 hop1 取出的新節點再查一次
+  - 合併所有邊 → 建 NetworkX DiGraph → 回傳 DataFrame（同 `lookup()` schema）
+  - 2 hop 就夠，生物網路 3 hop 以上 noise 太多
+- [ ] pipeline 改用 `get_neighborhood` 取代 `lookup`（只改 `_kg_search()`）
+- [ ] `to_graph_context(df, input_genes)` — 將 traversal 結果轉成 LLM 可讀文字（顯示 path 結構）
 
 **Agentic paper fetching**
 - [ ] LLM tool use for PubMed/web search — LLM decides when to fetch more papers (function calling)
