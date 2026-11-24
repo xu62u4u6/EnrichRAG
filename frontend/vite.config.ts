@@ -21,6 +21,7 @@ const apiPrefix = readEnvPrefix(); // e.g. "/test0948395013"
 // (in production FastAPI does this server-side)
 const injectHtmlVars = (): Plugin => ({
   name: 'inject-html-vars',
+  apply: 'serve',
   transformIndexHtml(html) {
     return html
       .replace('__UI_BASE__', '/')
